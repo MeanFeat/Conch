@@ -1,11 +1,27 @@
 #include "line.h"
-class ConBasOp;
 
-
-inline void ConLine::Execute()
+ConLine::~ConLine()
 {
-    for (ConBasOp& Op : Ops)
+}
+
+void ConLine::Execute()
+{
+    for (ConBaseOp* Op : Ops)
     {
-        Op.Execute();
+        Op->Execute();
     }
+}
+
+void ConLine::UpdateCycleCount()
+{
+    ConCompilable::UpdateCycleCount();
+    for (ConBaseOp* Op : Ops)
+    {
+        Op->UpdateCycleCount();
+    }   
+}
+
+void ConLine::SetOps(const vector<ConBaseOp*>& Ops)
+{
+    this->Ops = Ops;   
 }

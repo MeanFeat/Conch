@@ -1,29 +1,39 @@
 #include "variable.h"
 
-int32 ConVariable::GetVal() const
+int32 ConVariableAbsolute::GetVal() const
 {
     return Val;
 }
 
-void ConVariable::SetVal(const int32 NewVal)
+void ConVariableAbsolute::SetVal(const int32 NewVal)
+{
+    Val = NewVal;   
+}
+
+int32 ConVariableCached::GetVal() const
+{
+    return Val;
+}
+
+void ConVariableCached::SetVal(const int32 NewVal)
 {
     Cache = Val;
     Val = NewVal;
 }
 
-int32 ConVariable::GetCache() const
+int32 ConVariableCached::GetCache() const
 {
     return Cache;
 }
 
-void ConVariable::Swap()
+void ConVariableCached::Swap()
 {
     const int32 Temp = Val;
     Val = Cache;
     Cache = Temp;
 }
 
-ConVariable ConVariable::SwapInPlace()
+ConVariableCached ConVariableCached::SwapInPlace()
 {
     const int32 Temp = Val;
     Val = Cache;
