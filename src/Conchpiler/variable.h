@@ -6,27 +6,25 @@ struct ConVariable
     ConVariable() = default;
     virtual ~ConVariable() = default;
     virtual int32 GetVal() const = 0;
+    virtual void SetVal(int32 NewVal) = 0;
 };
 
-struct ConVariableAbsolute final : public ConVariable
+struct ConVariableAbsolute : public ConVariable
 {
     ConVariableAbsolute() = default;
     ConVariableAbsolute(const int32 InVal)
-        : Val(InVal)
-    {
-    }
+        : Val(InVal)  {}
     virtual int32 GetVal() const override;
-    void SetVal(int32 NewVal);
+    virtual void SetVal(int32 NewVal) override;
 private:
     int32 Val = 0;
 };
 
-struct ConVariableCached final : public ConVariable
+struct ConVariableCached : public ConVariable
 {
     virtual int32 GetVal() const override;
-    void SetVal(int32 NewVal);
+    virtual void SetVal(int32 NewVal) override;
     int32 GetCache() const;
-
     // swaps the value and the cache
     void Swap();
     ConVariableCached SwapInPlace();

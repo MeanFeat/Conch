@@ -1,12 +1,19 @@
 #include "common.h"
 #include "thread.h"
-
+#include <iostream>
+#include <ostream>
 void ConThread::Execute()
 {
     assert(Lines.size() > 0);
     for (ConLine& Line : Lines)
     {
         Line.Execute();
+        for (const ConVariable* Var : Variables)
+        {
+            const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
+            cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
+        }
+        cout << endl;
     }
 }
 
