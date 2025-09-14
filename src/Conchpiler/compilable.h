@@ -1,10 +1,11 @@
 #pragma once
 #include "common.h"
+#include "variable.h"
 
 struct ConCompilable 
 {
     virtual ~ConCompilable() = default;
-    virtual void Execute() = 0;
+    virtual void Execute(vector<ConVariable*>& regs) = 0;
     virtual void UpdateCycleCount() { ResetCycleCount(); };
     
     void AddCycles(int32 int32);

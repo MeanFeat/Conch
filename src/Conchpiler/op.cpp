@@ -1,30 +1,30 @@
 #include "op.h"
 
-void ConBaseOp::SetArgs(const vector<ConVariable*> Args)
+void ConBaseOp::SetArgs(const vector<Operand> Args)
 {
     assert(GetArgsCount() <= GetMaxArgs());
     this->Args = Args;
 }
 
-ConVariable* ConBaseOp::GetReturn() const
+Operand ConBaseOp::GetReturn() const
 {
     assert(HasReturn());
-    return nullptr;
+    return {};
 }
 
-const vector<ConVariable*> &ConBaseOp::GetArgs() const
+const vector<Operand> &ConBaseOp::GetArgs() const
 {
     return Args;
 }
 
 
-ConVariable* ConContextualReturnOp::GetDstArg() const
+Operand ConContextualReturnOp::GetDstArg() const
 {
     assert(GetArgsCount() > 0);
     return GetArgs().at(0);
 }
 
-vector<const ConVariable*> ConContextualReturnOp::GetSrcArg() const
+vector<Operand> ConContextualReturnOp::GetSrcArg() const
 {
     if (GetArgsCount() == 3)
     {
@@ -33,35 +33,51 @@ vector<const ConVariable*> ConContextualReturnOp::GetSrcArg() const
     return {GetDstArg(), GetArgs().at(1)};
 }
 
-void ConAddOp::Execute()
+void ConAddOp::Execute(vector<ConVariable*>& regs)
 {
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() + SrcArg.at(1)->GetVal());   
+    const vector<Operand> SrcArg = GetSrcArg();
+    int32 lhs = ReadOperand(SrcArg.at(0), regs);
+    int32 rhs = ReadOperand(SrcArg.at(1), regs);
+    Operand dst = GetDstArg();
+    assert(dst.kind == OperandKind::Reg);
+    regs[dst.value]->SetVal(lhs + rhs);
 }
 
-void ConMulOp::Execute()
+void ConMulOp::Execute(vector<ConVariable*>& regs)
 {
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() * SrcArg.at(1)->GetVal()); 
+    const vector<Operand> SrcArg = GetSrcArg();
+    int32 lhs = ReadOperand(SrcArg.at(0), regs);
+    int32 rhs = ReadOperand(SrcArg.at(1), regs);
+    Operand dst = GetDstArg();
+    assert(dst.kind == OperandKind::Reg);
+    regs[dst.value]->SetVal(lhs * rhs);
 }
 
-void ConSubOp::Execute()
+void ConSubOp::Execute(vector<ConVariable*>& regs)
 {
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() - SrcArg.at(1)->GetVal()); 
+    const vector<Operand> SrcArg = GetSrcArg();
+    int32 lhs = ReadOperand(SrcArg.at(0), regs);
+    int32 rhs = ReadOperand(SrcArg.at(1), regs);
+    Operand dst = GetDstArg();
+    assert(dst.kind == OperandKind::Reg);
+    regs[dst.value]->SetVal(lhs - rhs);
 }
 
-void ConSetOp::Execute()
+void ConSetOp::Execute(vector<ConVariable*>& regs)
 {
-    ConVariableCached *Dst = GetArgAs<ConVariableCached*>(0);
-    const ConVariableCached *Src = GetArgAs<ConVariableCached*>(1);
-    Dst->SetVal(Src->GetVal());
+    Operand dst = GetArgs().at(0);
+    Operand src = GetArgs().at(1);
+    assert(dst.kind == OperandKind::Reg);
+    regs[dst.value]->SetVal(ReadOperand(src, regs));
 }
 
-void ConSwpOp::Execute()
+void ConSwpOp::Execute(vector<ConVariable*>& regs)
 {
-    ConVariableCached *Dst = GetArgAs<ConVariableCached*>(0);
-    Dst->Swap();   
+    Operand dst = GetArgs().at(0);
+    assert(dst.kind == OperandKind::Reg);
+    ConVariableCached* var = dynamic_cast<ConVariableCached*>(regs[dst.value]);
+    assert(var);
+    var->Swap();
 }
 
 

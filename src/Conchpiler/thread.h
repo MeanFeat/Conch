@@ -7,9 +7,10 @@ struct ConThread final : public ConCompilable
 public:
     ConThread(): Variables() {}
     explicit ConThread(const vector<ConVariable*> &InVariables) : Variables(InVariables) {}
-    virtual void Execute() override;
+    virtual void Execute(vector<ConVariable*>& regs) override;
     virtual void UpdateCycleCount() override;
     void SetVariables(const vector<ConVariable*>& InVariables);
+    const vector<ConVariable*>& GetVariables() const { return Variables; }
     void ConstructLine(const vector<ConBaseOp*>& Ops);
     
 private:

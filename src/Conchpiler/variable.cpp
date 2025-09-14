@@ -1,15 +1,5 @@
 #include "variable.h"
 
-int32 ConVariableAbsolute::GetVal() const
-{
-    return Val;
-}
-
-void ConVariableAbsolute::SetVal(const int32 NewVal)
-{
-    Val = NewVal;   
-}
-
 int32 ConVariableCached::GetVal() const
 {
     return Val;

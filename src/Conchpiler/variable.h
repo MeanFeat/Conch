@@ -9,17 +9,6 @@ struct ConVariable
     virtual void SetVal(int32 NewVal) = 0;
 };
 
-struct ConVariableAbsolute : public ConVariable
-{
-    ConVariableAbsolute() = default;
-    ConVariableAbsolute(const int32 InVal)
-        : Val(InVal)  {}
-    virtual int32 GetVal() const override;
-    virtual void SetVal(int32 NewVal) override;
-private:
-    int32 Val = 0;
-};
-
 struct ConVariableCached : public ConVariable
 {
     virtual int32 GetVal() const override;

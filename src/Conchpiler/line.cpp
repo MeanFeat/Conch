@@ -4,11 +4,11 @@ ConLine::~ConLine()
 {
 }
 
-void ConLine::Execute()
+void ConLine::Execute(vector<ConVariable*>& regs)
 {
     for (ConBaseOp* Op : Ops)
     {
-        Op->Execute();
+        Op->Execute(regs);
     }
 }
 

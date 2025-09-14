@@ -6,22 +6,20 @@ int main(int Argc, char* Argv[])
 {
     ConVariableCached X;
     ConVariableCached Y;
-    ConVariableCached Z;
-    ConVariableAbsolute Five(5);
-    ConVariableAbsolute Ten(10);
-    ConThread Thread({&X,&Y});
-    ConSetOp Set_X_10({&X, &Ten});
-    ConSetOp Set_Y_10({&Y, &Ten});
-    ConAddOp AddYToX({&X, &Y});
-    ConSubOp Sub5FromY({&Y, &Five});
-    ConSwpOp SwpX({&X});
+    vector<ConVariable*> regs = {&X, &Y};
+    ConThread Thread(regs);
+    ConSetOp Set_X_10({{OperandKind::Reg, 0}, {OperandKind::Imm, 10}});
+    ConSetOp Set_Y_10({{OperandKind::Reg, 1}, {OperandKind::Imm, 10}});
+    ConAddOp AddYToX({{OperandKind::Reg, 0}, {OperandKind::Reg, 0}, {OperandKind::Reg, 1}});
+    ConSubOp Sub5FromY({{OperandKind::Reg, 1}, {OperandKind::Reg, 1}, {OperandKind::Imm, 5}});
+    ConSwpOp SwpX({{OperandKind::Reg, 0}});
     Thread.ConstructLine({&Set_X_10});
     Thread.ConstructLine({&Set_Y_10});
     Thread.ConstructLine({&AddYToX});
     Thread.ConstructLine({&Sub5FromY});
     Thread.ConstructLine({&AddYToX});
     Thread.ConstructLine({&SwpX});
-    Thread.Execute();
+    Thread.Execute(regs);
     
     return 0;
 }
