@@ -1,31 +1,26 @@
 #include "../src/Conchpiler/thread.h"
+#include <vector>
+struct ConBaseOp;
 
-int main(int argc, char* argv[])
+int main(int Argc, char* Argv[])
 {
-    ConThread Thread;
     ConVariableCached X;
     ConVariableCached Y;
     ConVariableCached Z;
-    vector<ConBaseOp*> SetX;
-    vector<ConBaseOp*> SetY;
-    ConSetOp Set_X_10;
-    ConSetOp Set_Y_10;
-    ConVariableAbsolute Ten(10);
-    Thread.SetVariables({&X,&Y,&Z});
-    Set_X_10.SetArgs({&X, &Ten});
-    Set_Y_10.SetArgs({&Y, &Ten});
-    SetX.push_back(&Set_X_10);
-    SetY.push_back(&Set_Y_10);
-    ConAddOp AddYToX;
-    AddYToX.SetArgs({&X, &Y});
-    ConSubOp Sub5fromY;
     ConVariableAbsolute Five(5);
-    Sub5fromY.SetArgs({&Y, &Five});
-    Thread.ConstructLine(SetX);
-    Thread.ConstructLine(SetY);
+    ConVariableAbsolute Ten(10);
+    ConThread Thread({&X,&Y});
+    ConSetOp Set_X_10({&X, &Ten});
+    ConSetOp Set_Y_10({&Y, &Ten});
+    ConAddOp AddYToX({&X, &Y});
+    ConSubOp Sub5FromY({&Y, &Five});
+    ConSwpOp SwpX({&X});
+    Thread.ConstructLine({&Set_X_10});
+    Thread.ConstructLine({&Set_Y_10});
     Thread.ConstructLine({&AddYToX});
-    Thread.ConstructLine({&Sub5fromY});
+    Thread.ConstructLine({&Sub5FromY});
     Thread.ConstructLine({&AddYToX});
+    Thread.ConstructLine({&SwpX});
     Thread.Execute();
     
     return 0;

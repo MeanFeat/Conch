@@ -5,7 +5,9 @@
 
 struct ConBaseOp : public ConCompilable
 {
-    virtual ~ConBaseOp() override = default;
+    ConBaseOp() = default;
+    explicit ConBaseOp( const vector<ConVariable*> &InArgs) : Args(InArgs) {}
+    virtual ~ConBaseOp() override {};
     virtual void SetArgs(vector<ConVariable*> Args);
     virtual int32 GetMaxArgs() const { return 2; }
     virtual bool HasReturn() const { return false; }
@@ -26,33 +28,39 @@ T ConBaseOp::GetArgAs(const int32 Index)
     return static_cast<T>(GetArgs().at(Index));
 }
 
-// if has return operate on last 2 args and place result in arg[0] if in place operate on 2 args and replace value of first 
+// if has return operate on last 2 args and place result in arg[0] if in-place, operate on 2 args and replace value of first 
 struct ConContextualReturnOp : public ConBaseOp
 {
+    ConContextualReturnOp() = default;
+    explicit ConContextualReturnOp( const vector<ConVariable*> &InArgs) : ConBaseOp(InArgs) {}
     virtual int32 GetMaxArgs() const override { return 3; }
     virtual bool HasReturn() const override { return GetArgsCount() > 2; }
-    virtual void Execute() override {};
+    virtual void Execute() override {}
     ConVariable* GetDstArg() const;
     vector<const ConVariable*> GetSrcArg() const;
 };
 
 struct ConAddOp final : public ConContextualReturnOp
 {
+    explicit ConAddOp(const vector<ConVariable*> &InArgs) : ConContextualReturnOp(InArgs) {}
     virtual void Execute() override;
 };
 
 struct ConMulOp final : public ConContextualReturnOp
 {
+    explicit ConMulOp(const vector<ConVariable*> &InArgs) : ConContextualReturnOp(InArgs) {}
     virtual void Execute() override;
 };
 
 struct ConSubOp final : public ConContextualReturnOp
 {
+    explicit ConSubOp(const vector<ConVariable*> &InArgs) : ConContextualReturnOp(InArgs) {}
     virtual void Execute() override;
 };
 
 struct ConSetOp final : public ConBaseOp
 {
+    explicit ConSetOp(const vector<ConVariable*> &InArgs) : ConBaseOp(InArgs){}
     virtual int32 GetMaxArgs() const override { return 2; }
     virtual bool HasReturn() const override { return false; }
     virtual void Execute() override;
@@ -60,6 +68,7 @@ struct ConSetOp final : public ConBaseOp
 
 struct ConSwpOp final : public ConBaseOp
 {
+    explicit ConSwpOp(const vector<ConVariable*> &InArgs) : ConBaseOp(InArgs){}
     virtual int32 GetMaxArgs() const override { return 1; }
     virtual bool HasReturn() const override { return false; }
     virtual void Execute() override;
