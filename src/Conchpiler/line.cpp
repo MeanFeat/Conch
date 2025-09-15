@@ -27,23 +27,32 @@ void ConLine::SetOps(const vector<ConBaseOp*>& Ops)
     this->Ops = Ops;
 }
 
-void ConLine::SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount)
+void ConLine::SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert)
 {
     Condition = Op;
     Left = Lhs;
     Right = Rhs;
     Skip = SkipCount;
+    Invert = bInvert;
 }
 
 bool ConLine::EvaluateCondition() const
 {
+    bool Result = true;
     switch (Condition)
     {
     case ConConditionOp::GTR:
-        return Left->GetVal() > Right->GetVal();
+        Result = Left->GetVal() > Right->GetVal();
+        break;
     case ConConditionOp::LSR:
-        return Left->GetVal() < Right->GetVal();
+        Result = Left->GetVal() < Right->GetVal();
+        break;
+    case ConConditionOp::EQL:
+        Result = Left->GetVal() == Right->GetVal();
+        break;
     default:
-        return true;
+        Result = true;
+        break;
     }
+    return Invert ? !Result : Result;
 }
