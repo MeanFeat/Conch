@@ -10,7 +10,8 @@ int main(int Argc, char* Argv[])
         "SET X 10",
         "SET Y 10",
         "ADD X Y",
-        "SUB Y 5",
+        "SUB Y 15",
+        "SET Z MUL Y -2",
         "ADD X Y",
         "SWP X"
     };

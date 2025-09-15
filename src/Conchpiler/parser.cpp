@@ -46,7 +46,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
             Ops.push_back(OpStorage.back().get());
             Stack.push_back(Var);
         }
-        else if (Tok == "ADD" || Tok == "SUB" || Tok == "MULT" || Tok == "DIVI")
+        else if (Tok == "ADD" || Tok == "SUB" || Tok == "MUL" || Tok == "DIV")
         {
             ConVariable* Dst = Stack.back(); Stack.pop_back();
             ConVariable* Src = Stack.back(); Stack.pop_back();
@@ -58,7 +58,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
             {
                 OpStorage.emplace_back(std::make_unique<ConSubOp>(std::vector<ConVariable*>{Dst, Src}));
             }
-            else if (Tok == "MULT")
+            else if (Tok == "MUL")
             {
                 OpStorage.emplace_back(std::make_unique<ConMulOp>(std::vector<ConVariable*>{Dst, Src}));
             }

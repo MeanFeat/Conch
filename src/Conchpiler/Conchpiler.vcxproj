@@ -231,6 +231,7 @@
       <SDLCheck>true</SDLCheck>
       <LibCompiled>true</LibCompiled>
     </ClCompile>
+    <ClCompile Include="parser.cpp" />
     <ClCompile Include="thread.cpp" />
     <ClCompile Include="variable.cpp" />
   </ItemGroup>
@@ -239,6 +240,7 @@
     <ClInclude Include="compilable.h" />
     <ClInclude Include="line.h" />
     <ClInclude Include="op.h" />
+    <ClInclude Include="parser.h" />
     <ClInclude Include="variable.h" />
     <ClInclude Include="program.h" />
     <ClInclude Include="thread.h" />
