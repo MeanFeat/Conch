@@ -17,6 +17,12 @@ const vector<ConVariable*> &ConBaseOp::GetArgs() const
     return Args;
 }
 
+void ConBaseOp::UpdateCycleCount()
+{
+    ConCompilable::UpdateCycleCount();
+    AddCycles(GetBaseCycleCost());
+}
+
 
 ConVariable* ConContextualReturnOp::GetDstArg() const
 {
@@ -48,7 +54,14 @@ void ConMulOp::Execute()
 void ConSubOp::Execute()
 {
     const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() - SrcArg.at(1)->GetVal()); 
+    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() - SrcArg.at(1)->GetVal());
+}
+
+void ConDivOp::Execute()
+{
+    const vector<const ConVariable*> SrcArg = GetSrcArg();
+    const int32 B = SrcArg.at(1)->GetVal();
+    GetDstArg()->SetVal(B == 0 ? 0 : SrcArg.at(0)->GetVal() / B);
 }
 
 void ConSetOp::Execute()
