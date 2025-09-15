@@ -15,23 +15,25 @@ void ConThread::Execute()
             if (!Line.EvaluateCondition())
             {
                 i += Line.GetSkipCount() + 1;
+                cout << "FALSE" << endl;
             }
             else
             {
                 ++i;
+                cout << "TRUE" << endl;
             }
         }
         else
         {
             Line.Execute();
             ++i;
+            for (const ConVariable* Var : Variables)
+            {
+                const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
+                cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
+            }
+            cout << endl;
         }
-        for (const ConVariable* Var : Variables)
-        {
-            const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
-            cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
-        }
-        cout << endl;
     }
 }
 
