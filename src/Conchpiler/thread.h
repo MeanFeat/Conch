@@ -10,7 +10,7 @@ public:
     virtual void Execute() override;
     virtual void UpdateCycleCount() override;
     void SetVariables(const vector<ConVariable*>& InVariables);
-    void ConstructLine(const vector<ConBaseOp*>& Ops);
+    void ConstructLine(const ConLine& Line);
     
 private:
     vector<ConVariable*> Variables;
