@@ -28,9 +28,9 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
     std::vector<ConBaseOp*> Ops;
     std::vector<ConVariable*> Stack;
 
-    for (auto It = Tokens.rbegin(); It != Tokens.rend(); ++It)
+    for (int32 i = static_cast<int32>(Tokens.size()) - 1; i >= 0; --i)
     {
-        const std::string& Tok = *It;
+        const std::string& Tok = Tokens.at(i);
         if (Tok == "SET")
         {
             ConVariable* Dst = Stack.back(); Stack.pop_back();
@@ -48,26 +48,55 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
         }
         else if (Tok == "ADD" || Tok == "SUB" || Tok == "MUL" || Tok == "DIV")
         {
-            ConVariable* Dst = Stack.back(); Stack.pop_back();
-            ConVariable* Src = Stack.back(); Stack.pop_back();
-            if (Tok == "ADD")
+            // handle expressions of the form: SET <dst> OP <a> <b>
+            if (i >= 2 && Tokens.at(i - 2) == "SET")
             {
-                OpStorage.emplace_back(std::make_unique<ConAddOp>(std::vector<ConVariable*>{Dst, Src}));
-            }
-            else if (Tok == "SUB")
-            {
-                OpStorage.emplace_back(std::make_unique<ConSubOp>(std::vector<ConVariable*>{Dst, Src}));
-            }
-            else if (Tok == "MUL")
-            {
-                OpStorage.emplace_back(std::make_unique<ConMulOp>(std::vector<ConVariable*>{Dst, Src}));
+                ConVariable* SrcA = Stack.back(); Stack.pop_back();
+                ConVariable* SrcB = Stack.back(); Stack.pop_back();
+                ConVariable* Dst = ResolveToken(Tokens.at(i - 1));
+                if (Tok == "ADD")
+                {
+                    OpStorage.emplace_back(std::make_unique<ConAddOp>(std::vector<ConVariable*>{Dst, SrcA, SrcB}));
+                }
+                else if (Tok == "SUB")
+                {
+                    OpStorage.emplace_back(std::make_unique<ConSubOp>(std::vector<ConVariable*>{Dst, SrcA, SrcB}));
+                }
+                else if (Tok == "MUL")
+                {
+                    OpStorage.emplace_back(std::make_unique<ConMulOp>(std::vector<ConVariable*>{Dst, SrcA, SrcB}));
+                }
+                else
+                {
+                    OpStorage.emplace_back(std::make_unique<ConDivOp>(std::vector<ConVariable*>{Dst, SrcA, SrcB}));
+                }
+                Ops.push_back(OpStorage.back().get());
+                Stack.push_back(Dst);
+                i -= 2; // consume destination and SET tokens
             }
             else
             {
-                OpStorage.emplace_back(std::make_unique<ConDivOp>(std::vector<ConVariable*>{Dst, Src}));
+                ConVariable* Dst = Stack.back(); Stack.pop_back();
+                ConVariable* Src = Stack.back(); Stack.pop_back();
+                if (Tok == "ADD")
+                {
+                    OpStorage.emplace_back(std::make_unique<ConAddOp>(std::vector<ConVariable*>{Dst, Src}));
+                }
+                else if (Tok == "SUB")
+                {
+                    OpStorage.emplace_back(std::make_unique<ConSubOp>(std::vector<ConVariable*>{Dst, Src}));
+                }
+                else if (Tok == "MUL")
+                {
+                    OpStorage.emplace_back(std::make_unique<ConMulOp>(std::vector<ConVariable*>{Dst, Src}));
+                }
+                else
+                {
+                    OpStorage.emplace_back(std::make_unique<ConDivOp>(std::vector<ConVariable*>{Dst, Src}));
+                }
+                Ops.push_back(OpStorage.back().get());
+                Stack.push_back(Dst);
             }
-            Ops.push_back(OpStorage.back().get());
-            Stack.push_back(Dst);
         }
         else
         {
