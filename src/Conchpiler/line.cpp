@@ -18,7 +18,8 @@ void ConLine::UpdateCycleCount()
     for (ConBaseOp* Op : Ops)
     {
         Op->UpdateCycleCount();
-    }   
+        AddCycles(Op->GetCycleCount());
+    }
 }
 
 void ConLine::SetOps(const vector<ConBaseOp*>& Ops)

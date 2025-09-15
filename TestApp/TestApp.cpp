@@ -1,27 +1,22 @@
-#include "../src/Conchpiler/thread.h"
+#include "../src/Conchpiler/parser.h"
+#include <iostream>
+#include <string>
 #include <vector>
-struct ConBaseOp;
 
 int main(int Argc, char* Argv[])
 {
-    ConVariableCached X;
-    ConVariableCached Y;
-    ConVariableCached Z;
-    ConVariableAbsolute Five(5);
-    ConVariableAbsolute Ten(10);
-    ConThread Thread({&X,&Y});
-    ConSetOp Set_X_10({&X, &Ten});
-    ConSetOp Set_Y_10({&Y, &Ten});
-    ConAddOp AddYToX({&X, &Y});
-    ConSubOp Sub5FromY({&Y, &Five});
-    ConSwpOp SwpX({&X});
-    Thread.ConstructLine({&Set_X_10});
-    Thread.ConstructLine({&Set_Y_10});
-    Thread.ConstructLine({&AddYToX});
-    Thread.ConstructLine({&Sub5FromY});
-    Thread.ConstructLine({&AddYToX});
-    Thread.ConstructLine({&SwpX});
+    ConParser Parser;
+    std::vector<std::string> Lines = {
+        "SET X 10",
+        "SET Y 10",
+        "ADD X Y",
+        "SUB Y 5",
+        "ADD X Y",
+        "SWP X"
+    };
+    ConThread Thread = Parser.Parse(Lines);
+    Thread.UpdateCycleCount();
     Thread.Execute();
-    
+    std::cout << "Total cycles: " << Thread.GetCycleCount() << std::endl;
     return 0;
 }

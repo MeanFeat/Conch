@@ -15,6 +15,9 @@ struct ConBaseOp : public ConCompilable
     const vector<ConVariable*> &GetArgs() const;
     int32 GetArgsCount() const { return int32(GetArgs().size()); }
 
+    virtual void UpdateCycleCount() override;
+    virtual int32 GetBaseCycleCost() const { return 1; }
+
     template<typename T>
     T GetArgAs(int32 Index);
 
@@ -52,6 +55,12 @@ struct ConMulOp final : public ConContextualReturnOp
 };
 
 struct ConSubOp final : public ConContextualReturnOp
+{
+    using ConContextualReturnOp::ConContextualReturnOp;
+    virtual void Execute() override;
+};
+
+struct ConDivOp final : public ConContextualReturnOp
 {
     using ConContextualReturnOp::ConContextualReturnOp;
     virtual void Execute() override;

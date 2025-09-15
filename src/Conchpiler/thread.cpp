@@ -20,9 +20,11 @@ void ConThread::Execute()
 void ConThread::UpdateCycleCount()
 {
     ConCompilable::UpdateCycleCount();
+    const int32 VarCount = int32(Variables.size());
     for (ConLine& Line : Lines)
     {
         Line.UpdateCycleCount();
+        Line.AddCycles(VarCount);
         AddCycles(Line.GetCycleCount());
     }
 }
