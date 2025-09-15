@@ -73,9 +73,9 @@ Comparisons:
 
 [VAR1] EQL [VAR2]
 
-[VAR1] GRTR [VAR2]
+[VAR1] GTR [VAR2]
 
-[VAR1] LSSR [VAR2]
+[VAR1] LSR [VAR2]
 
 Cycles: VarCount of each var accessed
 
@@ -182,7 +182,7 @@ Syntax restrictions apply; not all commands can be combined inline.
 
 Other Notes:
 
-IF, IFN, LOOP, REDO, JUMP can use EQL, GRTR, LSSR comparisons.
+IF, IFN, LOOP, REDO, JUMP can use EQL, GTR, LSR comparisons.
 
 NOOP is for timing/sync in advanced use.
 
@@ -192,7 +192,7 @@ E.g., IF ARG0 is true if list is not empty.
 
 Comparing to cached values is faster.
 
-E.g., IF X GRTR: (uses XC as implied).
+E.g., IF X GTR: (uses XC as implied).
 
 Code Blocks:
 
