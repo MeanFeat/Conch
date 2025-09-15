@@ -41,10 +41,10 @@ bool ConLine::EvaluateCondition() const
     bool Result = true;
     switch (Condition)
     {
-    case ConConditionOp::GRTR:
+    case ConConditionOp::GTR:
         Result = Left->GetVal() > Right->GetVal();
         break;
-    case ConConditionOp::LSSR:
+    case ConConditionOp::LSR:
         Result = Left->GetVal() < Right->GetVal();
         break;
     case ConConditionOp::EQL:

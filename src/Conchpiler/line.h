@@ -7,8 +7,8 @@
 enum class ConConditionOp
 {
     None,
-    GRTR,
-    LSSR,
+    GTR,
+    LSR,
     EQL
 };
 

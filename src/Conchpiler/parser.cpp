@@ -144,13 +144,13 @@ ConThread ConParser::Parse(const std::vector<std::string>& Lines)
         {
             P.IsIf = true;
             P.Invert = Tokens[0] == "IFN";
-            if (Tokens[1] == "GRTR" || Tokens[1] == "GTR")
+            if (Tokens[1] == "GTR")
             {
-                P.Cmp = ConConditionOp::GRTR;
+                P.Cmp = ConConditionOp::GTR;
             }
-            else if (Tokens[1] == "LSSR" || Tokens[1] == "LSR")
+            else if (Tokens[1] == "LSR")
             {
-                P.Cmp = ConConditionOp::LSSR;
+                P.Cmp = ConConditionOp::LSR;
             }
             else
             {
