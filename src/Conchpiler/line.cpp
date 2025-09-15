@@ -24,5 +24,26 @@ void ConLine::UpdateCycleCount()
 
 void ConLine::SetOps(const vector<ConBaseOp*>& Ops)
 {
-    this->Ops = Ops;   
+    this->Ops = Ops;
+}
+
+void ConLine::SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount)
+{
+    Condition = Op;
+    Left = Lhs;
+    Right = Rhs;
+    Skip = SkipCount;
+}
+
+bool ConLine::EvaluateCondition() const
+{
+    switch (Condition)
+    {
+    case ConConditionOp::GTR:
+        return Left->GetVal() > Right->GetVal();
+    case ConConditionOp::LSR:
+        return Left->GetVal() < Right->GetVal();
+    default:
+        return true;
+    }
 }

@@ -1,5 +1,6 @@
 #include "parser.h"
 #include <sstream>
+#include <cctype>
 
 ConParser::ConParser()
 {
@@ -107,16 +108,30 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
     return Ops;
 }
 
+struct ParsedLine
+{
+    int32 Indent = 0;
+    bool IsIf = false;
+    ConConditionOp Cmp = ConConditionOp::None;
+    ConVariable* Lhs = nullptr;
+    ConVariable* Rhs = nullptr;
+    int32 SkipCount = 0;
+    std::vector<ConBaseOp*> Ops;
+};
+
 ConThread ConParser::Parse(const std::vector<std::string>& Lines)
 {
-    std::vector<ConVariable*> Vars;
-    for (auto& V : VarStorage)
+    std::vector<ParsedLine> Parsed;
+    for (const std::string& RawLine : Lines)
     {
-        Vars.push_back(V.get());
-    }
-    ConThread Thread(Vars);
-    for (const std::string& Line : Lines)
-    {
+        ParsedLine P;
+        size_t Pos = 0;
+        while (Pos < RawLine.size() && isspace(static_cast<unsigned char>(RawLine[Pos])))
+        {
+            ++Pos;
+        }
+        P.Indent = static_cast<int32>(Pos);
+        std::string Line = RawLine.substr(Pos);
         std::stringstream SS(Line);
         std::vector<std::string> Tokens;
         std::string Tok;
@@ -124,7 +139,63 @@ ConThread ConParser::Parse(const std::vector<std::string>& Lines)
         {
             Tokens.push_back(Tok);
         }
-        Thread.ConstructLine(ParseTokens(Tokens));
+        if (!Tokens.empty() && Tokens[0] == "IF")
+        {
+            P.IsIf = true;
+            if (Tokens[1] == "GTR")
+            {
+                P.Cmp = ConConditionOp::GTR;
+            }
+            else
+            {
+                P.Cmp = ConConditionOp::LSR;
+            }
+            P.Lhs = ResolveToken(Tokens[2]);
+            P.Rhs = ResolveToken(Tokens[3]);
+        }
+        else
+        {
+            P.Ops = ParseTokens(Tokens);
+        }
+        Parsed.push_back(P);
+    }
+
+    std::vector<int32> Stack;
+    for (int32 i = 0; i < static_cast<int32>(Parsed.size()); ++i)
+    {
+        while (!Stack.empty() && Parsed[i].Indent <= Parsed[Stack.back()].Indent)
+        {
+            int32 Idx = Stack.back();
+            Stack.pop_back();
+            Parsed[Idx].SkipCount = i - Idx - 1;
+        }
+        if (Parsed[i].IsIf)
+        {
+            Stack.push_back(i);
+        }
+    }
+    while (!Stack.empty())
+    {
+        int32 Idx = Stack.back();
+        Stack.pop_back();
+        Parsed[Idx].SkipCount = static_cast<int32>(Parsed.size()) - Idx - 1;
+    }
+
+    std::vector<ConVariable*> Vars;
+    for (auto& V : VarStorage)
+    {
+        Vars.push_back(V.get());
+    }
+    ConThread Thread(Vars);
+    for (const ParsedLine& P : Parsed)
+    {
+        ConLine Line;
+        Line.SetOps(P.Ops);
+        if (P.IsIf)
+        {
+            Line.SetCondition(P.Cmp, P.Lhs, P.Rhs, P.SkipCount);
+        }
+        Thread.ConstructLine(Line);
     }
     return Thread;
 }

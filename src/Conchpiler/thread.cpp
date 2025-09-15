@@ -2,12 +2,30 @@
 #include "thread.h"
 #include <iostream>
 #include <ostream>
+
 void ConThread::Execute()
 {
-    assert(Lines.size() > 0);
-    for (ConLine& Line : Lines)
+    assert(!Lines.empty());
+    size_t i = 0;
+    while (i < Lines.size())
     {
-        Line.Execute();
+        ConLine& Line = Lines[i];
+        if (Line.IsConditional())
+        {
+            if (!Line.EvaluateCondition())
+            {
+                i += Line.GetSkipCount() + 1;
+            }
+            else
+            {
+                ++i;
+            }
+        }
+        else
+        {
+            Line.Execute();
+            ++i;
+        }
         for (const ConVariable* Var : Variables)
         {
             const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
@@ -34,9 +52,7 @@ void ConThread::SetVariables(const vector<ConVariable*>& InVariables)
     Variables = InVariables;
 }
 
-void ConThread::ConstructLine(const vector<ConBaseOp*> &Ops)
+void ConThread::ConstructLine(const ConLine &Line)
 {
-    ConLine Line;
-    Line.SetOps(Ops);
     Lines.push_back(Line);
 }

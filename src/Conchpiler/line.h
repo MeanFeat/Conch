@@ -2,6 +2,14 @@
 #include "common.h"
 #include "compilable.h"
 #include "op.h"
+#include "variable.h"
+
+enum class ConConditionOp
+{
+    None,
+    GTR,
+    LSR
+};
 
 struct ConLine : public ConCompilable
 {
@@ -11,9 +19,17 @@ public:
     virtual void Execute() override;
     virtual void UpdateCycleCount() override;
     void SetOps(const vector<ConBaseOp*>& Ops);
+    void SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount);
+    bool IsConditional() const { return Condition != ConConditionOp::None; }
+    bool EvaluateCondition() const;
+    int32 GetSkipCount() const { return Skip; }
 
 private:
     // in reverse order of operation
     vector<ConBaseOp*> Ops;
+    ConConditionOp Condition = ConConditionOp::None;
+    ConVariable* Left = nullptr;
+    ConVariable* Right = nullptr;
+    int32 Skip = 0;
 };
 
