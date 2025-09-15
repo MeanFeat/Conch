@@ -116,6 +116,7 @@ struct ParsedLine
     ConVariable* Lhs = nullptr;
     ConVariable* Rhs = nullptr;
     int32 SkipCount = 0;
+    bool Invert = false;
     std::vector<ConBaseOp*> Ops;
 };
 
@@ -139,16 +140,21 @@ ConThread ConParser::Parse(const std::vector<std::string>& Lines)
         {
             Tokens.push_back(Tok);
         }
-        if (!Tokens.empty() && Tokens[0] == "IF")
+        if (!Tokens.empty() && (Tokens[0] == "IF" || Tokens[0] == "IFN"))
         {
             P.IsIf = true;
-            if (Tokens[1] == "GTR")
+            P.Invert = Tokens[0] == "IFN";
+            if (Tokens[1] == "GRTR" || Tokens[1] == "GTR")
             {
-                P.Cmp = ConConditionOp::GTR;
+                P.Cmp = ConConditionOp::GRTR;
+            }
+            else if (Tokens[1] == "LSSR" || Tokens[1] == "LSR")
+            {
+                P.Cmp = ConConditionOp::LSSR;
             }
             else
             {
-                P.Cmp = ConConditionOp::LSR;
+                P.Cmp = ConConditionOp::EQL;
             }
             P.Lhs = ResolveToken(Tokens[2]);
             P.Rhs = ResolveToken(Tokens[3]);
@@ -193,7 +199,7 @@ ConThread ConParser::Parse(const std::vector<std::string>& Lines)
         Line.SetOps(P.Ops);
         if (P.IsIf)
         {
-            Line.SetCondition(P.Cmp, P.Lhs, P.Rhs, P.SkipCount);
+            Line.SetCondition(P.Cmp, P.Lhs, P.Rhs, P.SkipCount, P.Invert);
         }
         Thread.ConstructLine(Line);
     }

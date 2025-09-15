@@ -7,8 +7,9 @@
 enum class ConConditionOp
 {
     None,
-    GTR,
-    LSR
+    GRTR,
+    LSSR,
+    EQL
 };
 
 struct ConLine : public ConCompilable
@@ -19,7 +20,7 @@ public:
     virtual void Execute() override;
     virtual void UpdateCycleCount() override;
     void SetOps(const vector<ConBaseOp*>& Ops);
-    void SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount);
+    void SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert);
     bool IsConditional() const { return Condition != ConConditionOp::None; }
     bool EvaluateCondition() const;
     int32 GetSkipCount() const { return Skip; }
@@ -31,5 +32,6 @@ private:
     ConVariable* Left = nullptr;
     ConVariable* Right = nullptr;
     int32 Skip = 0;
+    bool Invert = false;
 };
 
