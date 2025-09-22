@@ -16,7 +16,9 @@ struct ConBaseOp : public ConCompilable
     int32 GetArgsCount() const { return int32(GetArgs().size()); }
 
     virtual void UpdateCycleCount() override;
+    virtual void UpdateCycleCount(int32 VarCount);
     virtual int32 GetBaseCycleCost() const { return 1; }
+    virtual int32 GetVariableAccessCount() const;
 
     template<typename T>
     T GetArgAs(int32 Index);

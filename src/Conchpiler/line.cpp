@@ -14,10 +14,15 @@ void ConLine::Execute()
 
 void ConLine::UpdateCycleCount()
 {
+    UpdateCycleCount(0);
+}
+
+void ConLine::UpdateCycleCount(const int32 VarCount)
+{
     ConCompilable::UpdateCycleCount();
     for (ConBaseOp* Op : Ops)
     {
-        Op->UpdateCycleCount();
+        Op->UpdateCycleCount(VarCount);
         AddCycles(Op->GetCycleCount());
     }
 }

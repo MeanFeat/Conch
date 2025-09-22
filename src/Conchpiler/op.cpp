@@ -1,4 +1,5 @@
 #include "op.h"
+#include <unordered_set>
 
 void ConBaseOp::SetArgs(const vector<ConVariable*> Args)
 {
@@ -19,8 +20,27 @@ const vector<ConVariable*> &ConBaseOp::GetArgs() const
 
 void ConBaseOp::UpdateCycleCount()
 {
+    UpdateCycleCount(0);
+}
+
+void ConBaseOp::UpdateCycleCount(const int32 VarCount)
+{
     ConCompilable::UpdateCycleCount();
-    AddCycles(GetBaseCycleCost());
+    const int32 VariableAccesses = GetVariableAccessCount();
+    AddCycles(GetBaseCycleCost() + VarCount * VariableAccesses);
+}
+
+int32 ConBaseOp::GetVariableAccessCount() const
+{
+    std::unordered_set<const ConVariableCached*> UniqueThreadVars;
+    for (const ConVariable* Var : GetArgs())
+    {
+        if (const auto* Cached = dynamic_cast<const ConVariableCached*>(Var))
+        {
+            UniqueThreadVars.insert(Cached);
+        }
+    }
+    return static_cast<int32>(UniqueThreadVars.size());
 }
 
 
