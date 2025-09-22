@@ -44,46 +44,24 @@ struct ConContextualReturnOp : public ConBaseOp
     vector<const ConVariable*> GetSrcArg() const;
 };
 
-struct ConAddOp final : public ConContextualReturnOp
+enum class ConBinaryOpKind
 {
-    using ConContextualReturnOp::ConContextualReturnOp;
-    virtual void Execute() override;
+    Add,
+    Sub,
+    Mul,
+    Div,
+    And,
+    Or,
+    Xor
 };
 
-struct ConMulOp final : public ConContextualReturnOp
+struct ConBinaryOp final : public ConContextualReturnOp
 {
-    using ConContextualReturnOp::ConContextualReturnOp;
+    ConBinaryOp(ConBinaryOpKind InKind, const std::vector<ConVariable*>& InArgs);
     virtual void Execute() override;
-};
 
-struct ConSubOp final : public ConContextualReturnOp
-{
-    using ConContextualReturnOp::ConContextualReturnOp;
-    virtual void Execute() override;
-};
-
-struct ConDivOp final : public ConContextualReturnOp
-{
-    using ConContextualReturnOp::ConContextualReturnOp;
-    virtual void Execute() override;
-};
-
-struct ConAndOp final : public ConContextualReturnOp
-{
-    using ConContextualReturnOp::ConContextualReturnOp;
-    virtual void Execute() override;
-};
-
-struct ConOrOp final : public ConContextualReturnOp
-{
-    using ConContextualReturnOp::ConContextualReturnOp;
-    virtual void Execute() override;
-};
-
-struct ConXorOp final : public ConContextualReturnOp
-{
-    using ConContextualReturnOp::ConContextualReturnOp;
-    virtual void Execute() override;
+private:
+    ConBinaryOpKind Kind;
 };
 
 struct ConIncrOp final : public ConBaseOp

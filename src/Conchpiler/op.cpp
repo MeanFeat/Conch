@@ -59,47 +59,48 @@ vector<const ConVariable*> ConContextualReturnOp::GetSrcArg() const
     return {GetDstArg(), GetArgs().at(1)};
 }
 
-void ConAddOp::Execute()
+ConBinaryOp::ConBinaryOp(const ConBinaryOpKind InKind, const vector<ConVariable*>& InArgs)
+    : ConContextualReturnOp(InArgs)
+    , Kind(InKind)
 {
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() + SrcArg.at(1)->GetVal());   
 }
 
-void ConMulOp::Execute()
+void ConBinaryOp::Execute()
 {
     const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() * SrcArg.at(1)->GetVal()); 
-}
+    const int32 Lhs = SrcArg.at(0)->GetVal();
+    const int32 Rhs = SrcArg.at(1)->GetVal();
 
-void ConSubOp::Execute()
-{
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() - SrcArg.at(1)->GetVal());
-}
+    int32 Result = 0;
+    switch (Kind)
+    {
+    case ConBinaryOpKind::Add:
+        Result = Lhs + Rhs;
+        break;
+    case ConBinaryOpKind::Sub:
+        Result = Lhs - Rhs;
+        break;
+    case ConBinaryOpKind::Mul:
+        Result = Lhs * Rhs;
+        break;
+    case ConBinaryOpKind::Div:
+        Result = (Rhs == 0) ? 0 : Lhs / Rhs;
+        break;
+    case ConBinaryOpKind::And:
+        Result = Lhs & Rhs;
+        break;
+    case ConBinaryOpKind::Or:
+        Result = Lhs | Rhs;
+        break;
+    case ConBinaryOpKind::Xor:
+        Result = Lhs ^ Rhs;
+        break;
+    default:
+        assert(false);
+        break;
+    }
 
-void ConDivOp::Execute()
-{
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    const int32 B = SrcArg.at(1)->GetVal();
-    GetDstArg()->SetVal(B == 0 ? 0 : SrcArg.at(0)->GetVal() / B);
-}
-
-void ConAndOp::Execute()
-{
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() & SrcArg.at(1)->GetVal());
-}
-
-void ConOrOp::Execute()
-{
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() | SrcArg.at(1)->GetVal());
-}
-
-void ConXorOp::Execute()
-{
-    const vector<const ConVariable*> SrcArg = GetSrcArg();
-    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() ^ SrcArg.at(1)->GetVal());
+    GetDstArg()->SetVal(Result);
 }
 
 void ConIncrOp::Execute()

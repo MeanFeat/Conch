@@ -47,92 +47,90 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
     std::vector<ConBaseOp*> Ops;
     std::vector<ConVariable*> Stack;
 
+    auto AddOp = [&](std::unique_ptr<ConBaseOp> Op, ConVariable* Result)
+    {
+        OpStorage.emplace_back(std::move(Op));
+        Ops.push_back(OpStorage.back().get());
+        Stack.push_back(Result);
+    };
+
+    auto PopValue = [&]() -> ConVariable*
+    {
+        assert(!Stack.empty());
+        ConVariable* Value = Stack.back();
+        Stack.pop_back();
+        return Value;
+    };
+
+    auto PopCached = [&]() -> ConVariableCached*
+    {
+        ConVariable* Value = PopValue();
+        ConVariableCached* Cached = dynamic_cast<ConVariableCached*>(Value);
+        assert(Cached != nullptr);
+        return Cached;
+    };
+
+    auto IsInlineSet = [&](int32 Index) -> bool
+    {
+        return Index >= 2 && Tokens.at(Index - 2) == "SET";
+    };
+
+    auto ResolveInlineDestination = [&](int32 Index) -> ConVariableCached*
+    {
+        ConVariable* RawDst = ResolveToken(Tokens.at(Index - 1));
+        ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(RawDst);
+        assert(Dst != nullptr);
+        return Dst;
+    };
+
+    static const std::unordered_map<std::string, ConBinaryOpKind> BinaryOpMap =
+    {
+        {"ADD", ConBinaryOpKind::Add},
+        {"SUB", ConBinaryOpKind::Sub},
+        {"MUL", ConBinaryOpKind::Mul},
+        {"DIV", ConBinaryOpKind::Div},
+        {"AND", ConBinaryOpKind::And},
+        {"OR", ConBinaryOpKind::Or},
+        {"XOR", ConBinaryOpKind::Xor}
+    };
+
     for (int32 i = static_cast<int32>(Tokens.size()) - 1; i >= 0; --i)
     {
         const std::string& Tok = Tokens.at(i);
-        auto AddOp = [&](std::unique_ptr<ConBaseOp> Op, ConVariable* Result)
-        {
-            OpStorage.emplace_back(std::move(Op));
-            Ops.push_back(OpStorage.back().get());
-            Stack.push_back(Result);
-        };
-
-        auto MakeContextual = [&](const std::string& Name, const std::vector<ConVariable*>& Args) -> std::unique_ptr<ConBaseOp>
-        {
-            if (Name == "ADD")
-            {
-                return std::make_unique<ConAddOp>(Args);
-            }
-            if (Name == "SUB")
-            {
-                return std::make_unique<ConSubOp>(Args);
-            }
-            if (Name == "MUL")
-            {
-                return std::make_unique<ConMulOp>(Args);
-            }
-            if (Name == "DIV")
-            {
-                return std::make_unique<ConDivOp>(Args);
-            }
-            if (Name == "AND")
-            {
-                return std::make_unique<ConAndOp>(Args);
-            }
-            if (Name == "OR")
-            {
-                return std::make_unique<ConOrOp>(Args);
-            }
-            return std::make_unique<ConXorOp>(Args);
-        };
+        auto BinaryIt = BinaryOpMap.find(Tok);
 
         if (Tok == "SET")
         {
-            assert(Stack.size() >= 2);
-
-            ConVariable* RawDst = Stack.back();
-            ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(RawDst);
-            assert(Dst != nullptr && "SET destination must be a cached variable");
-            Stack.pop_back();
-
-            ConVariable* Src = Stack.back(); Stack.pop_back();
-
+            ConVariableCached* Dst = PopCached();
+            ConVariable* Src = PopValue();
             AddOp(std::make_unique<ConSetOp>(std::vector<ConVariable*>{Dst, Src}), Dst);
         }
         else if (Tok == "SWP")
         {
-            assert(!Stack.empty());
-            ConVariableCached* Var = dynamic_cast<ConVariableCached*>(Stack.back());
-            assert(Var != nullptr);
-            Stack.pop_back();
+            ConVariableCached* Var = PopCached();
             AddOp(std::make_unique<ConSwpOp>(std::vector<ConVariable*>{Var}), Var);
         }
-        else if (Tok == "ADD" || Tok == "SUB" || Tok == "MUL" || Tok == "DIV" || Tok == "AND" || Tok == "OR" || Tok == "XOR")
+        else if (BinaryIt != BinaryOpMap.end())
         {
-            // handle expressions of the form: SET <dst> OP <a> <b>
-            if (i >= 2 && Tokens.at(i - 2) == "SET")
+            const ConBinaryOpKind Kind = BinaryIt->second;
+            if (IsInlineSet(i))
             {
-                ConVariable* SrcA = Stack.back(); Stack.pop_back();
-                ConVariable* SrcB = Stack.back(); Stack.pop_back();
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(ResolveToken(Tokens.at(i - 1)));
-                assert(Dst != nullptr);
-                AddOp(MakeContextual(Tok, std::vector<ConVariable*>{Dst, SrcA, SrcB}), Dst);
-                i -= 2; // consume destination and SET tokens
+                ConVariable* SrcA = PopValue();
+                ConVariable* SrcB = PopValue();
+                ConVariableCached* Dst = ResolveInlineDestination(i);
+                AddOp(std::make_unique<ConBinaryOp>(Kind, std::vector<ConVariable*>{Dst, SrcA, SrcB}), Dst);
+                i -= 2;
             }
             else
             {
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(Stack.back()); Stack.pop_back();
-                assert(Dst != nullptr);
-                ConVariable* Src = Stack.back(); Stack.pop_back();
-                AddOp(MakeContextual(Tok, std::vector<ConVariable*>{Dst, Src}), Dst);
+                ConVariableCached* Dst = PopCached();
+                ConVariable* Src = PopValue();
+                AddOp(std::make_unique<ConBinaryOp>(Kind, std::vector<ConVariable*>{Dst, Src}), Dst);
             }
         }
         else if (Tok == "INCR" || Tok == "DECR")
         {
-            assert(!Stack.empty());
-            ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(Stack.back());
-            assert(Dst != nullptr);
-            Stack.pop_back();
+            ConVariableCached* Dst = PopCached();
             if (Tok == "INCR")
             {
                 AddOp(std::make_unique<ConIncrOp>(std::vector<ConVariable*>{Dst}), Dst);
@@ -144,62 +142,50 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
         }
         else if (Tok == "NOT")
         {
-            if (i >= 2 && Tokens.at(i - 2) == "SET")
+            if (IsInlineSet(i))
             {
-                ConVariable* Src = Stack.back(); Stack.pop_back();
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(ResolveToken(Tokens.at(i - 1)));
-                assert(Dst != nullptr);
+                ConVariable* Src = PopValue();
+                ConVariableCached* Dst = ResolveInlineDestination(i);
                 AddOp(std::make_unique<ConNotOp>(std::vector<ConVariable*>{Dst, Src}), Dst);
                 i -= 2;
             }
             else
             {
-                assert(!Stack.empty());
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(Stack.back());
-                assert(Dst != nullptr);
-                Stack.pop_back();
+                ConVariableCached* Dst = PopCached();
                 AddOp(std::make_unique<ConNotOp>(std::vector<ConVariable*>{Dst}), Dst);
             }
         }
         else if (Tok == "POP")
         {
-            if (i >= 2 && Tokens.at(i - 2) == "SET")
+            if (IsInlineSet(i))
             {
-                ConVariable* List = Stack.back(); Stack.pop_back();
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(ResolveToken(Tokens.at(i - 1)));
-                assert(Dst != nullptr);
+                ConVariable* List = PopValue();
+                ConVariableCached* Dst = ResolveInlineDestination(i);
                 AddOp(std::make_unique<ConPopOp>(std::vector<ConVariable*>{Dst, List}), Dst);
                 i -= 2;
             }
             else
             {
-                assert(Stack.size() >= 2);
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(Stack.back());
-                assert(Dst != nullptr);
-                Stack.pop_back();
-                ConVariable* List = Stack.back(); Stack.pop_back();
+                ConVariableCached* Dst = PopCached();
+                ConVariable* List = PopValue();
                 AddOp(std::make_unique<ConPopOp>(std::vector<ConVariable*>{Dst, List}), Dst);
             }
         }
         else if (Tok == "AT")
         {
-            if (i >= 2 && Tokens.at(i - 2) == "SET")
+            if (IsInlineSet(i))
             {
-                ConVariable* List = Stack.back(); Stack.pop_back();
-                ConVariable* Index = Stack.back(); Stack.pop_back();
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(ResolveToken(Tokens.at(i - 1)));
-                assert(Dst != nullptr);
+                ConVariable* List = PopValue();
+                ConVariable* Index = PopValue();
+                ConVariableCached* Dst = ResolveInlineDestination(i);
                 AddOp(std::make_unique<ConAtOp>(std::vector<ConVariable*>{Dst, List, Index}), Dst);
                 i -= 2;
             }
             else
             {
-                assert(Stack.size() >= 3);
-                ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(Stack.back());
-                assert(Dst != nullptr);
-                Stack.pop_back();
-                ConVariable* List = Stack.back(); Stack.pop_back();
-                ConVariable* Index = Stack.back(); Stack.pop_back();
+                ConVariableCached* Dst = PopCached();
+                ConVariable* List = PopValue();
+                ConVariable* Index = PopValue();
                 AddOp(std::make_unique<ConAtOp>(std::vector<ConVariable*>{Dst, List, Index}), Dst);
             }
         }
