@@ -84,6 +84,69 @@ void ConDivOp::Execute()
     GetDstArg()->SetVal(B == 0 ? 0 : SrcArg.at(0)->GetVal() / B);
 }
 
+void ConAndOp::Execute()
+{
+    const vector<const ConVariable*> SrcArg = GetSrcArg();
+    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() & SrcArg.at(1)->GetVal());
+}
+
+void ConOrOp::Execute()
+{
+    const vector<const ConVariable*> SrcArg = GetSrcArg();
+    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() | SrcArg.at(1)->GetVal());
+}
+
+void ConXorOp::Execute()
+{
+    const vector<const ConVariable*> SrcArg = GetSrcArg();
+    GetDstArg()->SetVal(SrcArg.at(0)->GetVal() ^ SrcArg.at(1)->GetVal());
+}
+
+void ConIncrOp::Execute()
+{
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    Dst->SetVal(Dst->GetVal() + 1);
+}
+
+void ConDecrOp::Execute()
+{
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    Dst->SetVal(Dst->GetVal() - 1);
+}
+
+void ConNotOp::Execute()
+{
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    if (GetArgsCount() == 1)
+    {
+        Dst->SetVal(~Dst->GetVal());
+    }
+    else
+    {
+        const ConVariable* Src = GetArgAs<ConVariable*>(1);
+        Dst->SetVal(~Src->GetVal());
+    }
+}
+
+void ConPopOp::Execute()
+{
+    assert(GetArgsCount() >= 2);
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    ConVariableList* List = dynamic_cast<ConVariableList*>(GetArgAs<ConVariable*>(1));
+    assert(List != nullptr);
+    Dst->SetVal(List->Pop());
+}
+
+void ConAtOp::Execute()
+{
+    assert(GetArgsCount() >= 3);
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    ConVariableList* List = dynamic_cast<ConVariableList*>(GetArgAs<ConVariable*>(1));
+    assert(List != nullptr);
+    const ConVariable* IndexVar = GetArgAs<ConVariable*>(2);
+    Dst->SetVal(List->At(IndexVar->GetVal()));
+}
+
 void ConSetOp::Execute()
 {
     assert(dynamic_cast<ConVariableCached*>(GetArgs().at(0)) != nullptr);

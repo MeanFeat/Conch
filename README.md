@@ -54,14 +54,13 @@ IFN [CONDITION]
 Cycles: 1 + cost of condition
 Executes block if condition is false.
 
-LOOP
-Cycles: 0
-Sets marker that REDO returns to.
+LOOP [CONDITION]
+Cycles: 0 + cost of condition if one is supplied
+Marks the start of a loop. When a comparison is attached, the block is skipped if the comparison evaluates to false. Otherwise execution falls through to the next line.
 
-REDO [VAL]
-Cycles: 1 + cost of condition
-Decrements [VAL], loops back if not zero.
-If no value is provided, loop forever (must exit with RET or JUMP).
+REDO [VAR|CONDITION]
+Cycles: 1 + VarCount × (distinct thread vars touched by the counter and/or condition)
+Matches the most recent LOOP. With a cached variable argument, REDO decrements it and jumps back while the updated value is non-zero. With a comparison it re-evaluates the condition each time to decide whether to loop. When no argument is given, it loops forever (make sure to break out with RET or JUMP).
 
 Math Instructions:
 
@@ -76,7 +75,7 @@ SUB [VAR] [VAL]
 
 MULT [VAR] [VAL]
 
-DIVI [VAR] [VAL]
+DIV [VAR] [VAL]
 
 Comparisons:
 
@@ -98,8 +97,11 @@ Cycles: 1
 
 Jumps & Flow Control:
 
-JUMP [LABEL]
-Cycles: 1
+JUMP <LABEL> [CONDITION]
+Cycles: 1 + cost of condition if supplied
+Jumps to the line tagged with `<LABEL>:`. Optional comparisons gate the jump; without a comparison the jump is unconditional.
+
+Labels are declared by placing `<LABEL>:` at the start of a line. The label applies to the line it prefixes (which can still contain commands after the label).
 
 NOOP
 Cycles: 1
@@ -109,9 +111,11 @@ Increments and Logic:
 
 INCR [VAR]
 Cycles: 1 + VarCount
+Adds 1 to the cached variable.
 
 DECR [VAR]
 Cycles: 1 + VarCount
+Subtracts 1 from the cached variable.
 
 AND [VAR] [VAL]
 
@@ -120,8 +124,10 @@ OR [VAR] [VAL]
 XOR [VAR] [VAL]
 
 NOT [VAR]
+NOT [DST] [SRC]
 
 All: Cycles = 1 + VarCount × (distinct thread vars touched by the op)
+Binary logic ops behave like ADD/SUB and can be used inline with SET. NOT may be used in place (`NOT X`) or inline (`SET X NOT Y`).
 
 Return and Stack:
 
@@ -130,11 +136,15 @@ Cycles: 1
 
 POP [ARG]
 Cycles: 1
-Retrieves next value from LIST in [ARG].
+Retrieves the next value from the LIST referenced by [ARG]. Returns 0 once the list is exhausted.
 
 AT [IDX]
 Cycles: 1
-Gets value of a LIST at index.
+Reads a LIST at index without advancing the iterator. Out-of-range reads return 0.
+
+List Variables:
+
+Use LIST0, LIST1, etc., to hold queued data. `SET LIST0 <value>` appends to the list. POP maintains a per-list cursor so repeated POPs walk forward. AT is random-access and leaves the cursor untouched.
 
 Variable Usage Impact:
 

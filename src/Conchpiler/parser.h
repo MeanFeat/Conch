@@ -15,6 +15,7 @@ struct ConParser
 private:
     std::vector<std::unique_ptr<ConVariableCached>> VarStorage;
     std::vector<std::unique_ptr<ConVariableAbsolute>> ConstStorage;
+    std::vector<std::unique_ptr<ConVariableList>> ListStorage;
     std::vector<std::unique_ptr<ConBaseOp>> OpStorage;
     std::unordered_map<std::string, ConVariable*> VarMap;
 

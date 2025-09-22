@@ -10,8 +10,19 @@ void ConThread::Execute()
     while (i < Lines.size())
     {
         ConLine& Line = Lines[i];
-        if (Line.IsConditional())
+        switch (Line.GetKind())
         {
+        case ConLineKind::Ops:
+            Line.Execute();
+            ++i;
+            for (const ConVariable* Var : Variables)
+            {
+                const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
+                cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
+            }
+            cout << endl;
+            break;
+        case ConLineKind::If:
             if (!Line.EvaluateCondition())
             {
                 i += Line.GetSkipCount() + 1;
@@ -22,17 +33,86 @@ void ConThread::Execute()
                 ++i;
                 cout << "TRUE" << endl;
             }
-        }
-        else
-        {
-            Line.Execute();
-            ++i;
-            for (const ConVariable* Var : Variables)
+            break;
+        case ConLineKind::Loop:
+            if (Line.HasCondition() && !Line.EvaluateCondition())
             {
-                const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
-                cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
+                const int32 ExitIndex = Line.GetLoopExitIndex();
+                if (ExitIndex >= 0)
+                {
+                    i = static_cast<size_t>(ExitIndex);
+                }
+                else
+                {
+                    ++i;
+                }
             }
-            cout << endl;
+            else
+            {
+                ++i;
+            }
+            break;
+        case ConLineKind::Redo:
+        {
+            bool bLoop = Line.IsInfiniteLoop();
+            if (Line.HasCounter())
+            {
+                ConVariableCached* Counter = Line.GetCounterVar();
+                const int32 NewVal = Counter->GetVal() - 1;
+                Counter->SetVal(NewVal);
+                bLoop = NewVal != 0;
+            }
+            else if (Line.HasCondition())
+            {
+                bLoop = Line.EvaluateCondition();
+            }
+
+            if (bLoop)
+            {
+                const int32 TargetIndex = Line.GetTargetIndex();
+                if (TargetIndex >= 0)
+                {
+                    i = static_cast<size_t>(TargetIndex);
+                }
+                else
+                {
+                    ++i;
+                }
+            }
+            else
+            {
+                ++i;
+            }
+            break;
+        }
+        case ConLineKind::Jump:
+        {
+            bool bJump = true;
+            if (Line.HasCondition())
+            {
+                bJump = Line.EvaluateCondition();
+            }
+            if (bJump)
+            {
+                const int32 TargetIndex = Line.GetTargetIndex();
+                if (TargetIndex >= 0)
+                {
+                    i = static_cast<size_t>(TargetIndex);
+                }
+                else
+                {
+                    ++i;
+                }
+            }
+            else
+            {
+                ++i;
+            }
+            break;
+        }
+        default:
+            ++i;
+            break;
         }
     }
 }
