@@ -14,25 +14,33 @@ Cycles are one of the metrics the player is incentivized to reduce.
 
 Each instruction has its own cycle cost.
 
-Operations that access or alter variables cost as many cycles as there are variables used in the thread (VarCount).
+Operations that access or alter variables cost BaseCost + VarCount × (number of distinct thread variables the op touches).
 
-Example: Setting a variable costs [Command Cost] + [VarCount].
+BaseCost is 1 cycle for most instructions. Touching fewer thread variables keeps the multiplier low, so leaning on literals or cached values is a great optimization target.
 
-Inline functions can save cycles by not requiring another VarCount.
+Example: copying a literal into X costs 1 + VarCount (only X is touched). Copying X from Y touches two distinct thread variables, so it costs 1 + VarCount × 2.
 
-Example: SET X ADD Y 5
+Inline functions still save cycles because they reduce how many ops you run.
 
-1 cycle for SET, 1 for ADD, and only one VarCount for the line.
+Example (with three thread variables available, so VarCount = 3):
+
+ADD Y 3          // 1 (ADD) + 3 × 1 thread var (Y) = 4
+SET X Y          // 1 (SET) + 3 × 2 thread vars (X and Y) = 7
+Total: 11
+
+Inline version:
+
+SET X ADD Y 3    // Single ADD op touching X and Y = 1 + 3 × 2 = 7
 
 Commands:
 Assignment and Control:
 
 SET [VAR] [VAL]
-Cycles: VarCount
+Cycles: 1 + VarCount × (distinct thread vars touched; destination always counts, and sources count if they are thread vars)
 Sets the variable to value, shifting current value to cache.
 
 SWP [VAR]
-Cycles: 1
+Cycles: 1 + VarCount (touches one thread variable and its cache)
 Swaps variable with cache.
 Inline example: SWP SET X 1.
 
@@ -57,9 +65,10 @@ If no value is provided, loop forever (must exit with RET or JUMP).
 
 Math Instructions:
 
-Cost: VarCount × number of variables used in the operation
+Cost: 1 + VarCount × number of distinct thread variables used in the operation
 
-Operating on one variable (with its own cache) = 1 cycle.
+Operating on one thread variable alongside a literal = 1 + VarCount.
+Reusing the same thread variable multiple times still counts as a single distinct touch, so tricks like squaring `X` via `MUL X X` pay only one VarCount multiplier.
 
 ADD [VAR] [VAL]
 
@@ -77,12 +86,12 @@ Comparisons:
 
 [VAR1] LSR [VAR2]
 
-Cycles: VarCount of each var accessed
+Cycles: 1 + VarCount × (distinct thread vars compared)
 
 Communication:
 
 SEND [DST] [VAR]
-Cycles: VarCount
+Cycles: 1 + VarCount (touches a single thread variable)
 
 LSTN [DST] [VAR]
 Cycles: 1
@@ -99,10 +108,10 @@ No operation (used for timing/sync)
 Increments and Logic:
 
 INCR [VAR]
-Cycles: VarCount
+Cycles: 1 + VarCount
 
 DECR [VAR]
-Cycles: VarCount
+Cycles: 1 + VarCount
 
 AND [VAR] [VAL]
 
@@ -112,7 +121,7 @@ XOR [VAR] [VAL]
 
 NOT [VAR]
 
-All: Cycles = VarCount
+All: Cycles = 1 + VarCount × (distinct thread vars touched by the op)
 
 Return and Stack:
 
@@ -129,30 +138,32 @@ Gets value of a LIST at index.
 
 Variable Usage Impact:
 
-Cost depends on VarCount:
+Each distinct thread variable an op touches multiplies VarCount into the cost.
 
-One variable: 1 cycle
+One thread variable: 1 + VarCount
 
-Two variables: 2 cycles
+Two thread variables: 1 + VarCount × 2
 
-Three variables: 3 cycles
+Three thread variables: 1 + VarCount × 3
 
 Inline Optimization:
 
-Inline commands don't count toward 3 cycles per line rule.
+Inline commands don't count toward 3 ops per line, and they can keep costs down by avoiding extra ops that would each add their own BaseCost.
 
-Executed at lower cycle cost.
+Revisiting the example with VarCount = 3:
 
-Example:
-
-ADD Y 3          // 1 (ADD) + 2 (VarCount) = 3
-SET X Y          // 1 (SET) + 2 (VarCount) = 3
-Total: 6
+ADD Y 3          // 1 (ADD) + 3 × 1 = 4
+SET X Y          // 1 (SET) + 3 × 2 = 7
+Total: 11
 
 
 Inline version:
 
-SET X ADD Y 3    // 1 (SET) + 1 (ADD) + 2 (VarCount) = 4
+SET X ADD Y 3    // Single op = 1 + 3 × 2 = 7
+
+Optimization bonus:
+
+SET X MUL X X    // Only touches X, so 1 + 3 × 1 = 4 even though X is used twice
 
 Thread and Function Specifics:
 Functions:
@@ -176,7 +187,7 @@ Rule Name: Inline Operation Efficiency:
 
 Combining multiple operations inline reduces variable preparation overhead.
 
-Only one VarCount applies to the entire line.
+Inline forms let you pay the VarCount multiplier once per combined op instead of spreading it across separate commands, and reusing the same register keeps the distinct-variable multiplier low.
 
 Syntax restrictions apply; not all commands can be combined inline.
 

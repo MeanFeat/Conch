@@ -7,7 +7,7 @@ struct ConCompilable
     virtual void Execute() = 0;
     virtual void UpdateCycleCount() { ResetCycleCount(); };
     
-    void AddCycles(int32 int32);
+    void AddCycles(int32 Cycles);
     int32 GetCycleCount() const { return CycleCount; }
     int32 ResetCycleCount() { return CycleCount = 0; }
     
