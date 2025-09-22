@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include "compilable.h"
+#include "errors.h"
 #include "variable.h"
 
 struct ConBaseOp : public ConCompilable
@@ -34,7 +35,11 @@ private:
 template <typename T>
 T ConBaseOp::GetArgAs(const int32 Index)
 {
-    return static_cast<T>(GetArgs().at(Index));
+    if (Index < 0 || static_cast<size_t>(Index) >= GetArgs().size())
+    {
+        return nullptr;
+    }
+    return dynamic_cast<T>(GetArgs().at(Index));
 }
 
 // if has return operate on last 2 args and place result in arg[0] if in-place, operate on 2 args and replace value of first 

@@ -1,118 +1,134 @@
 #include "common.h"
 #include "thread.h"
+#include "errors.h"
+#include <exception>
 #include <iostream>
 #include <ostream>
 #include <utility>
 
 void ConThread::Execute()
 {
-    assert(!Lines.empty());
+    ResetRuntimeErrors();
     size_t i = 0;
     while (i < Lines.size())
     {
         ConLine& Line = Lines[i];
-        switch (Line.GetKind())
+        try
         {
-        case ConLineKind::Ops:
-            Line.Execute();
-            ++i;
-            for (const ConVariable* Var : Variables)
+            switch (Line.GetKind())
             {
-                const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
-                cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
-            }
-            cout << endl;
-            break;
-        case ConLineKind::If:
-            if (!Line.EvaluateCondition())
-            {
-                i += Line.GetSkipCount() + 1;
-                cout << "FALSE" << endl;
-            }
-            else
-            {
+            case ConLineKind::Ops:
+                Line.Execute();
                 ++i;
-                cout << "TRUE" << endl;
-            }
-            break;
-        case ConLineKind::Loop:
-            if (Line.HasCondition() && !Line.EvaluateCondition())
-            {
-                const int32 ExitIndex = Line.GetLoopExitIndex();
-                if (ExitIndex >= 0)
+                for (const ConVariable* Var : Variables)
                 {
-                    i = static_cast<size_t>(ExitIndex);
+                    const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
+                    cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
+                }
+                cout << endl;
+                break;
+            case ConLineKind::If:
+                if (!Line.EvaluateCondition())
+                {
+                    i += Line.GetSkipCount() + 1;
+                    cout << "FALSE" << endl;
+                }
+                else
+                {
+                    ++i;
+                    cout << "TRUE" << endl;
+                }
+                break;
+            case ConLineKind::Loop:
+                if (Line.HasCondition() && !Line.EvaluateCondition())
+                {
+                    const int32 ExitIndex = Line.GetLoopExitIndex();
+                    if (ExitIndex >= 0)
+                    {
+                        i = static_cast<size_t>(ExitIndex);
+                    }
+                    else
+                    {
+                        ++i;
+                    }
                 }
                 else
                 {
                     ++i;
                 }
-            }
-            else
+                break;
+            case ConLineKind::Redo:
             {
-                ++i;
-            }
-            break;
-        case ConLineKind::Redo:
-        {
-            bool bLoop = Line.IsInfiniteLoop();
-            if (Line.HasCounter())
-            {
-                ConVariableCached* Counter = Line.GetCounterVar();
-                const int32 NewVal = Counter->GetVal() - 1;
-                Counter->SetVal(NewVal);
-                bLoop = NewVal != 0;
-            }
-            else if (Line.HasCondition())
-            {
-                bLoop = Line.EvaluateCondition();
-            }
+                bool bLoop = Line.IsInfiniteLoop();
+                if (Line.HasCounter())
+                {
+                    ConVariableCached* Counter = Line.GetCounterVar();
+                    const int32 NewVal = Counter->GetVal() - 1;
+                    Counter->SetVal(NewVal);
+                    bLoop = NewVal != 0;
+                }
+                else if (Line.HasCondition())
+                {
+                    bLoop = Line.EvaluateCondition();
+                }
 
-            if (bLoop)
-            {
-                const int32 TargetIndex = Line.GetTargetIndex();
-                if (TargetIndex >= 0)
+                if (bLoop)
                 {
-                    i = static_cast<size_t>(TargetIndex);
+                    const int32 TargetIndex = Line.GetTargetIndex();
+                    if (TargetIndex >= 0)
+                    {
+                        i = static_cast<size_t>(TargetIndex);
+                    }
+                    else
+                    {
+                        ++i;
+                    }
                 }
                 else
                 {
                     ++i;
                 }
+                break;
             }
-            else
+            case ConLineKind::Jump:
             {
-                ++i;
+                bool bJump = true;
+                if (Line.HasCondition())
+                {
+                    bJump = Line.EvaluateCondition();
+                }
+                if (bJump)
+                {
+                    const int32 TargetIndex = Line.GetTargetIndex();
+                    if (TargetIndex >= 0)
+                    {
+                        i = static_cast<size_t>(TargetIndex);
+                    }
+                    else
+                    {
+                        ++i;
+                    }
+                }
+                else
+                {
+                    ++i;
+                }
+                break;
             }
-            break;
+            default:
+                ++i;
+                break;
+            }
         }
-        case ConLineKind::Jump:
+        catch (const ConRuntimeError& Error)
         {
-            bool bJump = true;
-            if (Line.HasCondition())
-            {
-                bJump = Line.EvaluateCondition();
-            }
-            if (bJump)
-            {
-                const int32 TargetIndex = Line.GetTargetIndex();
-                if (TargetIndex >= 0)
-                {
-                    i = static_cast<size_t>(TargetIndex);
-                }
-                else
-                {
-                    ++i;
-                }
-            }
-            else
-            {
-                ++i;
-            }
+            ReportRuntimeError(Error);
             break;
         }
-        default:
-            ++i;
+        catch (const std::exception& Ex)
+        {
+            ConRuntimeError Wrapped(Line.GetLocation(), Ex.what());
+            ReportRuntimeError(Wrapped);
             break;
         }
     }
@@ -148,4 +164,18 @@ void ConThread::SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&
 void ConThread::ConstructLine(const ConLine &Line)
 {
     Lines.push_back(Line);
+}
+
+void ConThread::ReportRuntimeError(const ConRuntimeError& Error)
+{
+    bHadRuntimeError = true;
+    const std::string Formatted = FormatErrorMessage(Error.Location, Error.what());
+    RuntimeErrors.push_back(Formatted);
+    std::cerr << Formatted << std::endl;
+}
+
+void ConThread::ResetRuntimeErrors()
+{
+    RuntimeErrors.clear();
+    bHadRuntimeError = false;
 }

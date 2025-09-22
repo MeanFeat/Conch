@@ -1,5 +1,6 @@
 #pragma once
 
+#include "errors.h"
 #include "scanner.h"
 #include "thread.h"
 #include <memory>
@@ -13,6 +14,7 @@ struct ConParser
 
     bool Parse(const vector<string>& Lines, ConThread& OutThread);
     const std::vector<std::string>& GetErrors() const { return Errors; }
+    bool HadError() const { return bHadError; }
 
 private:
     void Reset();
@@ -28,5 +30,6 @@ private:
     ConVariable* ResolveToken(const Token& Tok);
     std::vector<ConBaseOp*> ParseTokens(const std::vector<Token>& Tokens);
     void ReportError(const Token& Tok, const std::string& Message);
+    void ReportError(const ConParseError& Error);
 };
 

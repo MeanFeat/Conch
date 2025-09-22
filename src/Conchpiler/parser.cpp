@@ -50,14 +50,17 @@ void ConParser::Reset()
 
 void ConParser::ReportError(const Token& Tok, const std::string& Message)
 {
+    ConSourceLocation Location;
+    Location.Line = Tok.Line;
+    Location.Column = Tok.Column;
     bHadError = true;
-    std::ostringstream Stream;
-    if (Tok.Line > 0)
-    {
-        Stream << "[line " << Tok.Line << ", col " << Tok.Column << "] ";
-    }
-    Stream << Message;
-    Errors.push_back(Stream.str());
+    Errors.push_back(FormatErrorMessage(Location, Message));
+}
+
+void ConParser::ReportError(const ConParseError& Error)
+{
+    bHadError = true;
+    Errors.push_back(FormatErrorMessage(Error.Location, Error.what()));
 }
 
 ConVariable* ConParser::ResolveToken(const Token& Tok)
@@ -66,7 +69,7 @@ ConVariable* ConParser::ResolveToken(const Token& Tok)
     {
         if (!Tok.bHasLiteral)
         {
-            return nullptr;
+            throw ConParseError(Tok, "Numeric token missing literal value");
         }
         ConstStorage.emplace_back(std::make_unique<ConVariableAbsolute>(Tok.Literal));
         return ConstStorage.back().get();
@@ -83,8 +86,7 @@ ConVariable* ConParser::ResolveToken(const Token& Tok)
         const std::string IndexStr = Lexeme.substr(4);
         if (IndexStr.empty())
         {
-            ReportError(Tok, "LIST token missing index");
-            return nullptr;
+            throw ConParseError(Tok, "LIST token missing index");
         }
         int32 Index = 0;
         try
@@ -93,8 +95,7 @@ ConVariable* ConParser::ResolveToken(const Token& Tok)
         }
         catch (const std::exception&)
         {
-            ReportError(Tok, "Invalid LIST index");
-            return nullptr;
+            throw ConParseError(Tok, "Invalid LIST index");
         }
         while (static_cast<int32>(ListStorage.size()) <= Index)
         {
@@ -114,14 +115,14 @@ ConVariable* ConParser::ResolveToken(const Token& Tok)
     }
     catch (const std::exception&)
     {
-        ReportError(Tok, "Unable to resolve token '" + Lexeme + "'");
-        return nullptr;
+        throw ConParseError(Tok, "Unable to resolve token '" + Lexeme + "'");
     }
 }
 
 std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
 {
     std::vector<ConBaseOp*> Ops;
+    const size_t InitialOpStorageSize = OpStorage.size();
     struct StackEntry
     {
         ConVariable* Value = nullptr;
@@ -132,10 +133,6 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
 
     auto AddOp = [&](std::unique_ptr<ConBaseOp> Op, const StackEntry& ResultEntry, const Token& OpToken)
     {
-        if (ResultEntry.Value == nullptr)
-        {
-            return;
-        }
         OpStorage.emplace_back(std::move(Op));
         ConBaseOp* Stored = OpStorage.back().get();
         Stored->SetSourceLocation({OpToken.Line, OpToken.Column});
@@ -147,8 +144,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
     {
         if (Stack.empty())
         {
-            ReportError(Context, "Not enough values before '" + Context.Lexeme + "'");
-            return {};
+            throw ConParseError(Context, "Not enough values before '" + Context.Lexeme + "'");
         }
         StackEntry Entry = Stack.back();
         Stack.pop_back();
@@ -158,15 +154,10 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
     auto PopCached = [&](const Token& Context) -> StackEntry
     {
         StackEntry Entry = PopValue(Context);
-        if (Entry.Value == nullptr)
-        {
-            return {};
-        }
         ConVariableCached* Cached = dynamic_cast<ConVariableCached*>(Entry.Value);
         if (Cached == nullptr)
         {
-            ReportError(Entry.TokenInfo, "Expected thread variable");
-            return {};
+            throw ConParseError(Entry.TokenInfo, "Expected thread variable");
         }
         Entry.Value = Cached;
         return Entry;
@@ -184,8 +175,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(RawDst);
         if (Dst == nullptr)
         {
-            ReportError(DestToken, "Inline destination must be a thread variable");
-            return {};
+            throw ConParseError(DestToken, "Inline destination must be a thread variable");
         }
         StackEntry Entry;
         Entry.Value = Dst;
@@ -204,68 +194,56 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         {"XOR", ConBinaryOpKind::Xor}
     };
 
-    for (int32 i = static_cast<int32>(Tokens.size()) - 1; i >= 0; --i)
+    try
     {
-        const Token& Tok = Tokens.at(i);
-        if (Tok.Type == TokenType::Colon)
+        for (int32 i = static_cast<int32>(Tokens.size()) - 1; i >= 0; --i)
         {
-            continue;
-        }
-
-        if (Tok.Type == TokenType::Identifier)
-        {
-            auto BinaryIt = BinaryOpMap.find(Tok.Lexeme);
-
-            if (Tok.Lexeme == "SET")
+            const Token& Tok = Tokens.at(i);
+            if (Tok.Type == TokenType::Colon)
             {
-                StackEntry DstEntry = PopCached(Tok);
-                StackEntry SrcEntry = PopValue(Tok);
-                if (DstEntry.Value != nullptr && SrcEntry.Value != nullptr)
-                {
-                    std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
-                    AddOp(std::make_unique<ConSetOp>(Args), DstEntry, Tok);
-                }
+                continue;
             }
-            else if (Tok.Lexeme == "SWP")
+
+            if (Tok.Type == TokenType::Identifier)
             {
-                StackEntry VarEntry = PopCached(Tok);
-                if (VarEntry.Value != nullptr)
-                {
-                    std::vector<ConVariable*> Args = {VarEntry.Value};
-                    AddOp(std::make_unique<ConSwpOp>(Args), VarEntry, Tok);
-                }
-            }
-            else if (BinaryIt != BinaryOpMap.end())
-            {
-                const ConBinaryOpKind Kind = BinaryIt->second;
-                if (IsInlineSet(i))
-                {
-                    StackEntry SrcA = PopValue(Tok);
-                    StackEntry SrcB = PopValue(Tok);
-                    StackEntry DstEntry = ResolveInlineDestination(i);
-                    if (DstEntry.Value != nullptr && SrcA.Value != nullptr && SrcB.Value != nullptr)
-                    {
-                        std::vector<ConVariable*> Args = {DstEntry.Value, SrcA.Value, SrcB.Value};
-                        AddOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
-                    }
-                    i -= 2;
-                }
-                else
+                auto BinaryIt = BinaryOpMap.find(Tok.Lexeme);
+
+                if (Tok.Lexeme == "SET")
                 {
                     StackEntry DstEntry = PopCached(Tok);
                     StackEntry SrcEntry = PopValue(Tok);
-                    if (DstEntry.Value != nullptr && SrcEntry.Value != nullptr)
+                    std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
+                    AddOp(std::make_unique<ConSetOp>(Args), DstEntry, Tok);
+                }
+                else if (Tok.Lexeme == "SWP")
+                {
+                    StackEntry VarEntry = PopCached(Tok);
+                    std::vector<ConVariable*> Args = {VarEntry.Value};
+                    AddOp(std::make_unique<ConSwpOp>(Args), VarEntry, Tok);
+                }
+                else if (BinaryIt != BinaryOpMap.end())
+                {
+                    const ConBinaryOpKind Kind = BinaryIt->second;
+                    if (IsInlineSet(i))
                     {
+                        StackEntry SrcA = PopValue(Tok);
+                        StackEntry SrcB = PopValue(Tok);
+                        StackEntry DstEntry = ResolveInlineDestination(i);
+                        std::vector<ConVariable*> Args = {DstEntry.Value, SrcA.Value, SrcB.Value};
+                        AddOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
+                        i -= 2;
+                    }
+                    else
+                    {
+                        StackEntry DstEntry = PopCached(Tok);
+                        StackEntry SrcEntry = PopValue(Tok);
                         std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
                         AddOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
                     }
                 }
-            }
-            else if (Tok.Lexeme == "INCR" || Tok.Lexeme == "DECR")
-            {
-                StackEntry DstEntry = PopCached(Tok);
-                if (DstEntry.Value != nullptr)
+                else if (Tok.Lexeme == "INCR" || Tok.Lexeme == "DECR")
                 {
+                    StackEntry DstEntry = PopCached(Tok);
                     if (Tok.Lexeme == "INCR")
                     {
                         std::vector<ConVariable*> Args = {DstEntry.Value};
@@ -277,103 +255,88 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
                         AddOp(std::make_unique<ConDecrOp>(Args), DstEntry, Tok);
                     }
                 }
-            }
-            else if (Tok.Lexeme == "NOT")
-            {
-                if (IsInlineSet(i))
+                else if (Tok.Lexeme == "NOT")
                 {
-                    StackEntry SrcEntry = PopValue(Tok);
-                    StackEntry DstEntry = ResolveInlineDestination(i);
-                    if (DstEntry.Value != nullptr && SrcEntry.Value != nullptr)
+                    if (IsInlineSet(i))
                     {
+                        StackEntry SrcEntry = PopValue(Tok);
+                        StackEntry DstEntry = ResolveInlineDestination(i);
                         std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
                         AddOp(std::make_unique<ConNotOp>(Args), DstEntry, Tok);
+                        i -= 2;
                     }
-                    i -= 2;
-                }
-                else
-                {
-                    StackEntry DstEntry = PopCached(Tok);
-                    if (DstEntry.Value != nullptr)
+                    else
                     {
+                        StackEntry DstEntry = PopCached(Tok);
                         std::vector<ConVariable*> Args = {DstEntry.Value};
                         AddOp(std::make_unique<ConNotOp>(Args), DstEntry, Tok);
                     }
                 }
-            }
-            else if (Tok.Lexeme == "POP")
-            {
-                if (IsInlineSet(i))
+                else if (Tok.Lexeme == "POP")
                 {
-                    StackEntry ListEntry = PopValue(Tok);
-                    StackEntry DstEntry = ResolveInlineDestination(i);
-                    if (DstEntry.Value != nullptr && ListEntry.Value != nullptr)
+                    if (IsInlineSet(i))
                     {
+                        StackEntry ListEntry = PopValue(Tok);
+                        StackEntry DstEntry = ResolveInlineDestination(i);
                         std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value};
                         AddOp(std::make_unique<ConPopOp>(Args), DstEntry, Tok);
+                        i -= 2;
                     }
-                    i -= 2;
-                }
-                else
-                {
-                    StackEntry DstEntry = PopCached(Tok);
-                    StackEntry ListEntry = PopValue(Tok);
-                    if (DstEntry.Value != nullptr && ListEntry.Value != nullptr)
+                    else
                     {
+                        StackEntry DstEntry = PopCached(Tok);
+                        StackEntry ListEntry = PopValue(Tok);
                         std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value};
                         AddOp(std::make_unique<ConPopOp>(Args), DstEntry, Tok);
                     }
                 }
-            }
-            else if (Tok.Lexeme == "AT")
-            {
-                if (IsInlineSet(i))
+                else if (Tok.Lexeme == "AT")
                 {
-                    StackEntry ListEntry = PopValue(Tok);
-                    StackEntry IndexEntry = PopValue(Tok);
-                    StackEntry DstEntry = ResolveInlineDestination(i);
-                    if (DstEntry.Value != nullptr && ListEntry.Value != nullptr && IndexEntry.Value != nullptr)
+                    if (IsInlineSet(i))
                     {
+                        StackEntry ListEntry = PopValue(Tok);
+                        StackEntry IndexEntry = PopValue(Tok);
+                        StackEntry DstEntry = ResolveInlineDestination(i);
+                        std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
+                        AddOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
+                        i -= 2;
+                    }
+                    else
+                    {
+                        StackEntry DstEntry = PopCached(Tok);
+                        StackEntry ListEntry = PopValue(Tok);
+                        StackEntry IndexEntry = PopValue(Tok);
                         std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
                         AddOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
                     }
-                    i -= 2;
                 }
                 else
                 {
-                    StackEntry DstEntry = PopCached(Tok);
-                    StackEntry ListEntry = PopValue(Tok);
-                    StackEntry IndexEntry = PopValue(Tok);
-                    if (DstEntry.Value != nullptr && ListEntry.Value != nullptr && IndexEntry.Value != nullptr)
-                    {
-                        std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
-                        AddOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
-                    }
-                }
-            }
-            else
-            {
-                ConVariable* Value = ResolveToken(Tok);
-                if (Value != nullptr)
-                {
+                    ConVariable* Value = ResolveToken(Tok);
                     StackEntry Entry;
                     Entry.Value = Value;
                     Entry.TokenInfo = Tok;
                     Stack.push_back(Entry);
                 }
             }
-        }
-        else
-        {
-            ConVariable* Value = ResolveToken(Tok);
-            if (Value != nullptr)
+            else
             {
+                ConVariable* Value = ResolveToken(Tok);
                 StackEntry Entry;
                 Entry.Value = Value;
                 Entry.TokenInfo = Tok;
                 Stack.push_back(Entry);
             }
         }
+    }
+    catch (const ConParseError& Error)
+    {
+        ReportError(Error);
+        while (OpStorage.size() > InitialOpStorageSize)
+        {
+            OpStorage.pop_back();
+        }
+        Ops.clear();
     }
 
     return Ops;
@@ -459,80 +422,84 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             return true;
         };
 
-        if (Command == "IF" || Command == "IFN")
+        try
         {
-            if (!EnsureArgs(4, "IF requires a comparison and two operands"))
+            if (Command == "IF" || Command == "IFN")
             {
-                Parsed.push_back(std::move(P));
-                continue;
-            }
-            P.Type = ParsedLineType::If;
-            P.Invert = Command == "IFN";
-            P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
-            P.Lhs = ResolveToken(Tokens[2]);
-            P.Rhs = ResolveToken(Tokens[3]);
-        }
-        else if (Command == "LOOP")
-        {
-            P.Type = ParsedLineType::Loop;
-            if (Tokens.size() >= 4 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
-            {
-                P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
-                P.Lhs = ResolveToken(Tokens[2]);
-                P.Rhs = ResolveToken(Tokens[3]);
-            }
-        }
-        else if (Command == "REDO")
-        {
-            P.Type = ParsedLineType::Redo;
-            if (Tokens.size() == 1)
-            {
-                P.InfiniteLoop = true;
-            }
-            else if (Tokens.size() >= 4 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
-            {
-                P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
-                P.Lhs = ResolveToken(Tokens[2]);
-                P.Rhs = ResolveToken(Tokens[3]);
-            }
-            else
-            {
-                ConVariable* CounterVar = ResolveToken(Tokens[1]);
-                ConVariableCached* Cached = dynamic_cast<ConVariableCached*>(CounterVar);
-                if (Cached == nullptr)
+                if (!EnsureArgs(4, "IF requires a comparison and two operands"))
                 {
-                    ReportError(Tokens[1], "REDO counter must be a thread variable");
+                    Parsed.push_back(std::move(P));
+                    continue;
+                }
+                P.Type = ParsedLineType::If;
+                P.Invert = Command == "IFN";
+                P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
+                P.Lhs = ResolveToken(Tokens[2]);
+                P.Rhs = ResolveToken(Tokens[3]);
+            }
+            else if (Command == "LOOP")
+            {
+                P.Type = ParsedLineType::Loop;
+                if (Tokens.size() >= 4 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
+                {
+                    P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
+                    P.Lhs = ResolveToken(Tokens[2]);
+                    P.Rhs = ResolveToken(Tokens[3]);
+                }
+            }
+            else if (Command == "REDO")
+            {
+                P.Type = ParsedLineType::Redo;
+                if (Tokens.size() == 1)
+                {
+                    P.InfiniteLoop = true;
+                }
+                else if (Tokens.size() >= 4 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
+                {
+                    P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
+                    P.Lhs = ResolveToken(Tokens[2]);
+                    P.Rhs = ResolveToken(Tokens[3]);
                 }
                 else
                 {
+                    ConVariable* CounterVar = ResolveToken(Tokens[1]);
+                    ConVariableCached* Cached = dynamic_cast<ConVariableCached*>(CounterVar);
+                    if (Cached == nullptr)
+                    {
+                        throw ConParseError(Tokens[1], "REDO counter must be a thread variable");
+                    }
                     P.Counter = Cached;
                 }
             }
-        }
-        else if (Command == "JUMP")
-        {
-            P.Type = ParsedLineType::Jump;
-            size_t LabelIndex = 1;
-            if (Tokens.size() >= 5 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
+            else if (Command == "JUMP")
             {
-                P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
-                P.Lhs = ResolveToken(Tokens[2]);
-                P.Rhs = ResolveToken(Tokens[3]);
-                LabelIndex = 4;
-            }
-            if (LabelIndex < Tokens.size())
-            {
-                P.TargetLabel = Tokens[LabelIndex].Lexeme;
+                P.Type = ParsedLineType::Jump;
+                size_t LabelIndex = 1;
+                if (Tokens.size() >= 5 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
+                {
+                    P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
+                    P.Lhs = ResolveToken(Tokens[2]);
+                    P.Rhs = ResolveToken(Tokens[3]);
+                    LabelIndex = 4;
+                }
+                if (LabelIndex < Tokens.size())
+                {
+                    P.TargetLabel = Tokens[LabelIndex].Lexeme;
+                }
+                else
+                {
+                    ReportError(CommandToken, "JUMP requires a label target");
+                }
             }
             else
             {
-                ReportError(CommandToken, "JUMP requires a label target");
+                P.Type = ParsedLineType::Ops;
+                P.Ops = ParseTokens(Tokens);
             }
         }
-        else
+        catch (const ConParseError& Error)
         {
-            P.Type = ParsedLineType::Ops;
-            P.Ops = ParseTokens(Tokens);
+            ReportError(Error);
         }
 
         Parsed.push_back(std::move(P));
