@@ -157,6 +157,7 @@
     <ClCompile Include="line.cpp" />
     <ClCompile Include="op.cpp" />
     <ClCompile Include="parser.cpp" />
+    <ClCompile Include="scanner.cpp" />
     <ClCompile Include="thread.cpp" />
     <ClCompile Include="variable.cpp" />
   </ItemGroup>
@@ -166,6 +167,7 @@
     <ClInclude Include="line.h" />
     <ClInclude Include="op.h" />
     <ClInclude Include="parser.h" />
+    <ClInclude Include="scanner.h" />
     <ClInclude Include="variable.h" />
     <ClInclude Include="program.h" />
     <ClInclude Include="thread.h" />

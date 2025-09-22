@@ -15,6 +15,9 @@ struct ConBaseOp : public ConCompilable
     const vector<ConVariable*> &GetArgs() const;
     int32 GetArgsCount() const { return int32(GetArgs().size()); }
 
+    void SetSourceLocation(const ConSourceLocation& InLocation) { Location = InLocation; }
+    const ConSourceLocation& GetSourceLocation() const { return Location; }
+
     virtual void UpdateCycleCount() override;
     virtual void UpdateCycleCount(int32 VarCount);
     virtual int32 GetBaseCycleCost() const { return 1; }
@@ -25,6 +28,7 @@ struct ConBaseOp : public ConCompilable
 
 private:
     vector<ConVariable*> Args;
+    ConSourceLocation Location;
 };
 
 template <typename T>

@@ -1,7 +1,9 @@
 #pragma once
 
+#include "scanner.h"
 #include "thread.h"
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -10,7 +12,8 @@ struct ConParser
 {
     ConParser();
 
-    ConThread Parse(const vector<string>& Lines);
+    std::optional<ConThread> Parse(const vector<string>& Lines);
+    const std::vector<std::string>& GetErrors() const { return Errors; }
 
 private:
     std::vector<std::unique_ptr<ConVariableCached>> VarStorage;
@@ -18,8 +21,11 @@ private:
     std::vector<std::unique_ptr<ConVariableList>> ListStorage;
     std::vector<std::unique_ptr<ConBaseOp>> OpStorage;
     std::unordered_map<std::string, ConVariable*> VarMap;
+    std::vector<std::string> Errors;
+    bool bHadError = false;
 
-    ConVariable* ResolveToken(const std::string& Tok);
-    std::vector<ConBaseOp*> ParseTokens(const std::vector<std::string>& Tokens);
+    ConVariable* ResolveToken(const Token& Tok);
+    std::vector<ConBaseOp*> ParseTokens(const std::vector<Token>& Tokens);
+    void ReportError(const Token& Tok, const std::string& Message);
 };
 
