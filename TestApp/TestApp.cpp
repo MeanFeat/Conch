@@ -14,6 +14,9 @@ int main(int Argc, char* Argv[])
         "SET Z MUL Y -2",
         "IF GTR X Y",
         "   ADD X Y",
+        "LOOP GTR X 0",
+        "   DECR X",
+        "   REDO",
         "SWP X",
         "SET X SUB Z 2"
     };

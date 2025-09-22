@@ -85,6 +85,16 @@ ConVariableCached ConVariableCached::SwapInPlace()
     return *this;
 }
 
+ConVariable* ConVariableCached::GetCacheVariable()
+{
+    return &CacheAccessor;
+}
+
+const ConVariable* ConVariableCached::GetCacheVariable() const
+{
+    return &CacheAccessor;
+}
+
 ConVariableList::ConVariableList(const vector<int32>& InValues)
     : Storage(InValues)
 {

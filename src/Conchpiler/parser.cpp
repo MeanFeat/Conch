@@ -1,4 +1,6 @@
 #include "parser.h"
+
+#include <array>
 #include <sstream>
 #include <cctype>
 #include <unordered_map>
