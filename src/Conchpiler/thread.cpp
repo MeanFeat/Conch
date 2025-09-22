@@ -2,6 +2,7 @@
 #include "thread.h"
 #include <iostream>
 #include <ostream>
+#include <utility>
 
 void ConThread::Execute()
 {
@@ -131,6 +132,17 @@ void ConThread::UpdateCycleCount()
 void ConThread::SetVariables(const vector<ConVariable*>& InVariables)
 {
     Variables = InVariables;
+}
+
+void ConThread::SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&& CachedVars,
+                                std::vector<std::unique_ptr<ConVariableAbsolute>>&& ConstVars,
+                                std::vector<std::unique_ptr<ConVariableList>>&& ListVars,
+                                std::vector<std::unique_ptr<ConBaseOp>>&& Ops)
+{
+    OwnedVarStorage = std::move(CachedVars);
+    OwnedConstStorage = std::move(ConstVars);
+    OwnedListStorage = std::move(ListVars);
+    OwnedOpStorage = std::move(Ops);
 }
 
 void ConThread::ConstructLine(const ConLine &Line)
