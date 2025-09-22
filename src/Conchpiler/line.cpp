@@ -1,5 +1,7 @@
 #include "line.h"
 
+#include "errors.h"
+
 ConLine::~ConLine()
 {
 }
@@ -165,6 +167,16 @@ void ConLine::SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, Co
 
 bool ConLine::EvaluateCondition() const
 {
+    if (Condition == ConConditionOp::None)
+    {
+        return Invert ? false : true;
+    }
+
+    if (Left == nullptr || Right == nullptr)
+    {
+        throw ConRuntimeError(Location, "Condition requires two operands");
+    }
+
     bool Result = true;
     switch (Condition)
     {
@@ -178,7 +190,6 @@ bool ConLine::EvaluateCondition() const
         Result = Left->GetVal() == Right->GetVal();
         break;
     default:
-        Result = true;
         break;
     }
     return Invert ? !Result : Result;

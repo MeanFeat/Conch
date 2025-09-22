@@ -225,3 +225,10 @@ Comments:
 
 Not allowed in real code.
 (Training examples may include them, but they are invalid in-game.)
+
+## Troubleshooting & Diagnostics
+
+* Parse-time mistakes now surface as `[line N, col M]` messages from `ConParser::Parse`. `Parser.GetErrors()` preserves the full list so you can diff tweaks quickly when chasing a faster solution.
+* Runtime mistakes (for example, trying to `POP` into a literal or feeding a `NOT` without a source) bubble up through `ConThread`. The thread stops immediately, `HadRuntimeError()` flips to true, and `GetRuntimeErrors()` returns the formatted messages. They are also echoed to stderr so you do not miss them while watching register dumps.
+* Cycle-count instrumentation is frozen as soon as a runtime error fires. That means you can experiment with aggressive inline tricks or risky LIST juggling without corrupting your performance baseline—fix the reported issue and re-run to compare cycles apples-to-apples.
+* When optimising for cycles, lean into the new diagnostics: use them to validate that an inline rewrite still targets thread variables (mis-tagged literals are a common culprit), and iterate on cache-heavy strategies that keep the distinct-variable multiplier low.

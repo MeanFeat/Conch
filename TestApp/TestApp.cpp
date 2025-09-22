@@ -34,6 +34,15 @@ int main(int Argc, char* Argv[])
 
     Thread.UpdateCycleCount();
     Thread.Execute();
+    if (Thread.HadRuntimeError())
+    {
+        std::cout << "Runtime error(s) encountered:\n";
+        for (const std::string& Error : Thread.GetRuntimeErrors())
+        {
+            std::cout << "  " << Error << std::endl;
+        }
+        return 1;
+    }
     std::cout << "Total cycles: " << Thread.GetCycleCount() << std::endl;
     return 0;
 }
