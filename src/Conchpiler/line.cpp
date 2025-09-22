@@ -83,7 +83,7 @@ void ConLine::UpdateCycleCount(const int32 VarCount)
     }
 }
 
-void ConLine::SetOps(const vector<ConBaseOp*>& InOps)
+void ConLine::SetOps(const vector<ConBaseOp*>& InOps, ConSourceLocation InLocation)
 {
     this->Ops = InOps;
     Kind = ConLineKind::Ops;
@@ -96,9 +96,10 @@ void ConLine::SetOps(const vector<ConBaseOp*>& InOps)
     Counter = nullptr;
     bInfiniteLoop = false;
     Invert = false;
+    Location = InLocation;
 }
 
-void ConLine::SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert)
+void ConLine::SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert, ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::If;
@@ -111,9 +112,10 @@ void ConLine::SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32
     TargetIndex = -1;
     Counter = nullptr;
     bInfiniteLoop = false;
+    Location = InLocation;
 }
 
-void ConLine::SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, int32 ExitIndex)
+void ConLine::SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, int32 ExitIndex, ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::Loop;
@@ -126,9 +128,10 @@ void ConLine::SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, boo
     TargetIndex = -1;
     Counter = nullptr;
     bInfiniteLoop = false;
+    Location = InLocation;
 }
 
-void ConLine::SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bInfinite, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert)
+void ConLine::SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bInfinite, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::Redo;
@@ -141,9 +144,10 @@ void ConLine::SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bIn
     Invert = bInvert;
     Skip = 0;
     LoopExitIndex = -1;
+    Location = InLocation;
 }
 
-void ConLine::SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert)
+void ConLine::SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::Jump;
@@ -156,6 +160,7 @@ void ConLine::SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, Co
     LoopExitIndex = -1;
     Counter = nullptr;
     bInfiniteLoop = false;
+    Location = InLocation;
 }
 
 bool ConLine::EvaluateCondition() const

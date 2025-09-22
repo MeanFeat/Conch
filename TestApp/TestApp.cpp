@@ -20,7 +20,18 @@ int main(int Argc, char* Argv[])
         "SWP X",
         "SET X SUB Z 2"
     };
-    ConThread Thread = Parser.Parse(Lines);
+    ConThread Thread;
+    const bool bParsed = Parser.Parse(Lines, Thread);
+    if (!bParsed)
+    {
+        std::cout << "Failed to parse program:\n";
+        for (const std::string& Error : Parser.GetErrors())
+        {
+            std::cout << "  " << Error << std::endl;
+        }
+        return 1;
+    }
+
     Thread.UpdateCycleCount();
     Thread.Execute();
     std::cout << "Total cycles: " << Thread.GetCycleCount() << std::endl;

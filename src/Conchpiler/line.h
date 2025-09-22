@@ -29,11 +29,11 @@ public:
     virtual void Execute() override;
     virtual void UpdateCycleCount() override;
     void UpdateCycleCount(int32 VarCount);
-    void SetOps(const vector<ConBaseOp*>& InOps);
-    void SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert);
-    void SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, int32 ExitIndex);
-    void SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bInfinite, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert);
-    void SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert);
+    void SetOps(const vector<ConBaseOp*>& InOps, ConSourceLocation InLocation);
+    void SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert, ConSourceLocation InLocation);
+    void SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, int32 ExitIndex, ConSourceLocation InLocation);
+    void SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bInfinite, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, ConSourceLocation InLocation);
+    void SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, ConSourceLocation InLocation);
 
     ConLineKind GetKind() const { return Kind; }
     bool HasCondition() const { return Condition != ConConditionOp::None; }
@@ -44,6 +44,7 @@ public:
     ConVariableCached* GetCounterVar() const { return Counter; }
     bool HasCounter() const { return Counter != nullptr; }
     bool IsInfiniteLoop() const { return bInfiniteLoop; }
+    const ConSourceLocation& GetLocation() const { return Location; }
 
 private:
     // in reverse order of operation
@@ -58,5 +59,6 @@ private:
     ConVariableCached* Counter = nullptr;
     bool bInfiniteLoop = false;
     bool Invert = false;
+    ConSourceLocation Location;
 };
 
