@@ -15,8 +15,9 @@ struct ConParser
 private:
     std::vector<std::unique_ptr<ConVariableCached>> VarStorage;
     std::vector<std::unique_ptr<ConVariableAbsolute>> ConstStorage;
+    std::vector<std::unique_ptr<ConVariableList>> ListStorage;
     std::vector<std::unique_ptr<ConBaseOp>> OpStorage;
-    std::unordered_map<std::string, ConVariableCached*> VarMap;
+    std::unordered_map<std::string, ConVariable*> VarMap;
 
     ConVariable* ResolveToken(const std::string& Tok);
     std::vector<ConBaseOp*> ParseTokens(const std::vector<std::string>& Tokens);

@@ -68,6 +68,61 @@ struct ConDivOp final : public ConContextualReturnOp
     virtual void Execute() override;
 };
 
+struct ConAndOp final : public ConContextualReturnOp
+{
+    using ConContextualReturnOp::ConContextualReturnOp;
+    virtual void Execute() override;
+};
+
+struct ConOrOp final : public ConContextualReturnOp
+{
+    using ConContextualReturnOp::ConContextualReturnOp;
+    virtual void Execute() override;
+};
+
+struct ConXorOp final : public ConContextualReturnOp
+{
+    using ConContextualReturnOp::ConContextualReturnOp;
+    virtual void Execute() override;
+};
+
+struct ConIncrOp final : public ConBaseOp
+{
+    using ConBaseOp::ConBaseOp;
+    virtual int32 GetMaxArgs() const override { return 1; }
+    virtual void Execute() override;
+};
+
+struct ConDecrOp final : public ConBaseOp
+{
+    using ConBaseOp::ConBaseOp;
+    virtual int32 GetMaxArgs() const override { return 1; }
+    virtual void Execute() override;
+};
+
+struct ConNotOp final : public ConBaseOp
+{
+    using ConBaseOp::ConBaseOp;
+    virtual int32 GetMaxArgs() const override { return 2; }
+    virtual void Execute() override;
+};
+
+struct ConPopOp final : public ConBaseOp
+{
+    using ConBaseOp::ConBaseOp;
+    virtual int32 GetMaxArgs() const override { return 2; }
+    virtual bool HasReturn() const override { return true; }
+    virtual void Execute() override;
+};
+
+struct ConAtOp final : public ConBaseOp
+{
+    using ConBaseOp::ConBaseOp;
+    virtual int32 GetMaxArgs() const override { return 3; }
+    virtual bool HasReturn() const override { return true; }
+    virtual void Execute() override;
+};
+
 struct ConSetOp final : public ConBaseOp
 {
     using ConBaseOp::ConBaseOp;

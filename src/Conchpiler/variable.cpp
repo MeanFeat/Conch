@@ -40,3 +40,78 @@ ConVariableCached ConVariableCached::SwapInPlace()
     Cache = Temp;
     return *this;
 }
+
+ConVariableList::ConVariableList(const vector<int32>& InValues)
+    : Storage(InValues)
+{
+    if (!Storage.empty())
+    {
+        CurrentValue = Storage.front();
+    }
+}
+
+int32 ConVariableList::GetVal() const
+{
+    return CurrentValue;
+}
+
+void ConVariableList::SetVal(const int32 NewVal)
+{
+    Push(NewVal);
+}
+
+int32 ConVariableList::Pop()
+{
+    if (Cursor < Storage.size())
+    {
+        CurrentValue = Storage.at(Cursor);
+        ++Cursor;
+    }
+    else
+    {
+        CurrentValue = 0;
+    }
+    return CurrentValue;
+}
+
+int32 ConVariableList::At(const int32 Index) const
+{
+    if (Index >= 0 && static_cast<size_t>(Index) < Storage.size())
+    {
+        CurrentValue = Storage.at(static_cast<size_t>(Index));
+        return CurrentValue;
+    }
+    CurrentValue = 0;
+    return CurrentValue;
+}
+
+void ConVariableList::Push(const int32 Value)
+{
+    Storage.push_back(Value);
+    CurrentValue = Value;
+}
+
+void ConVariableList::SetValues(const vector<int32>& Values)
+{
+    Storage = Values;
+    Cursor = 0;
+    CurrentValue = Storage.empty() ? 0 : Storage.front();
+}
+
+bool ConVariableList::Empty() const
+{
+    return Storage.empty();
+}
+
+void ConVariableList::Reset()
+{
+    Cursor = 0;
+    if (!Storage.empty())
+    {
+        CurrentValue = Storage.front();
+    }
+    else
+    {
+        CurrentValue = 0;
+    }
+}
