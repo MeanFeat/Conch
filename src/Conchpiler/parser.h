@@ -15,6 +15,8 @@ struct ConParser
     const std::vector<std::string>& GetErrors() const { return Errors; }
 
 private:
+    void Reset();
+
     std::vector<std::unique_ptr<ConVariableCached>> VarStorage;
     std::vector<std::unique_ptr<ConVariableAbsolute>> ConstStorage;
     std::vector<std::unique_ptr<ConVariableList>> ListStorage;

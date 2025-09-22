@@ -27,6 +27,17 @@ bool IsComparisonToken(const std::string& Comp)
 
 ConParser::ConParser()
 {
+    Reset();
+}
+
+void ConParser::Reset()
+{
+    VarStorage.clear();
+    ConstStorage.clear();
+    ListStorage.clear();
+    OpStorage.clear();
+    VarMap.clear();
+
     const std::array<std::string, 3> BaseVars = {"X", "Y", "Z"};
     for (const std::string& Name : BaseVars)
     {
@@ -398,6 +409,7 @@ struct ParsedLine
 
 bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThread)
 {
+    Reset();
     Errors.clear();
     bHadError = false;
 
@@ -639,7 +651,8 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         }
         Thread.ConstructLine(Line);
     }
-    OutThread = Thread;
+    Thread.SetOwnedStorage(std::move(VarStorage), std::move(ConstStorage), std::move(ListStorage), std::move(OpStorage));
+    OutThread = std::move(Thread);
     return true;
 }
 
