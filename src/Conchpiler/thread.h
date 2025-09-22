@@ -8,11 +8,11 @@
 struct ConThread final : public ConCompilable
 {
 public:
-    ConThread(): Variables() {}
-    explicit ConThread(const vector<ConVariable*> &InVariables) : Variables(InVariables) {}
+    ConThread() : ThreadVariables() {}
+    explicit ConThread(const vector<ConVariableCached*>& InVariables) : ThreadVariables(InVariables) {}
     virtual void Execute() override;
     virtual void UpdateCycleCount() override;
-    void SetVariables(const vector<ConVariable*>& InVariables);
+    void SetVariables(const vector<ConVariableCached*>& InVariables);
     void SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&& CachedVars,
                          std::vector<std::unique_ptr<ConVariableAbsolute>>&& ConstVars,
                          std::vector<std::unique_ptr<ConVariableList>>&& ListVars,
@@ -26,7 +26,7 @@ private:
     void ReportRuntimeError(const ConRuntimeError& Error);
     void ResetRuntimeErrors();
 
-    vector<ConVariable*> Variables;
+    vector<ConVariableCached*> ThreadVariables;
     vector<ConLine> Lines;
     std::vector<std::unique_ptr<ConVariableCached>> OwnedVarStorage;
     std::vector<std::unique_ptr<ConVariableAbsolute>> OwnedConstStorage;

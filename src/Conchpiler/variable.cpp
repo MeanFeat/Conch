@@ -169,3 +169,54 @@ void ConVariableList::Reset()
         CurrentValue = 0;
     }
 }
+
+VariableRef::VariableRef(const VariableKind InKind, ConVariable* const InPtr, ConVariableCached* const InOwner)
+    : Kind(InKind)
+    , Ptr(InPtr)
+    , ThreadOwner((InKind == VariableKind::Thread || InKind == VariableKind::Cache) ? InOwner : nullptr)
+{
+}
+
+VariableRef VariableRef::ThreadVar(ConVariableCached* const Var)
+{
+    return VariableRef(VariableKind::Thread, Var, Var);
+}
+
+VariableRef VariableRef::CacheVar(ConVariableCached* const Var)
+{
+    ConVariable* CachePtr = Var != nullptr ? Var->GetCacheVariable() : nullptr;
+    return VariableRef(VariableKind::Cache, CachePtr, Var);
+}
+
+VariableRef VariableRef::ListVar(ConVariableList* const Var)
+{
+    return VariableRef(VariableKind::List, Var, nullptr);
+}
+
+VariableRef VariableRef::LiteralVar(ConVariableAbsolute* const Var)
+{
+    return VariableRef(VariableKind::Literal, Var, nullptr);
+}
+
+ConVariableList* VariableRef::GetList() const
+{
+    return (Kind == VariableKind::List) ? static_cast<ConVariableList*>(Ptr) : nullptr;
+}
+
+ConVariableAbsolute* VariableRef::GetLiteral() const
+{
+    return (Kind == VariableKind::Literal) ? static_cast<ConVariableAbsolute*>(Ptr) : nullptr;
+}
+
+int32 VariableRef::Read() const
+{
+    return Ptr != nullptr ? Ptr->GetVal() : 0;
+}
+
+void VariableRef::Write(const int32 Value) const
+{
+    if (Ptr != nullptr)
+    {
+        Ptr->SetVal(Value);
+    }
+}

@@ -1,6 +1,14 @@
 #pragma once
 #include "common.h"
 
+enum class VariableKind
+{
+    Thread,
+    Cache,
+    List,
+    Literal
+};
+
 struct ConVariable
 {
     ConVariable() = default;
@@ -76,4 +84,37 @@ private:
     vector<int32> Storage;
     mutable int32 CurrentValue = 0;
     size_t Cursor = 0;
+};
+
+struct VariableRef
+{
+    VariableRef() = default;
+    VariableRef(VariableKind InKind, ConVariable* InPtr, ConVariableCached* InOwner = nullptr);
+
+    static VariableRef ThreadVar(ConVariableCached* Var);
+    static VariableRef CacheVar(ConVariableCached* Var);
+    static VariableRef ListVar(ConVariableList* Var);
+    static VariableRef LiteralVar(ConVariableAbsolute* Var);
+
+    bool IsValid() const { return Ptr != nullptr; }
+    VariableKind GetKind() const { return Kind; }
+    bool IsThread() const { return Kind == VariableKind::Thread; }
+    bool IsCache() const { return Kind == VariableKind::Cache; }
+    bool IsList() const { return Kind == VariableKind::List; }
+    bool IsLiteral() const { return Kind == VariableKind::Literal; }
+    bool TouchesThread() const { return Kind == VariableKind::Thread || Kind == VariableKind::Cache; }
+
+    ConVariable* GetVariable() const { return Ptr; }
+    ConVariableCached* GetThread() const { return IsThread() ? ThreadOwner : nullptr; }
+    ConVariableCached* GetThreadOwner() const { return ThreadOwner; }
+    ConVariableList* GetList() const;
+    ConVariableAbsolute* GetLiteral() const;
+
+    int32 Read() const;
+    void Write(int32 Value) const;
+
+private:
+    VariableKind Kind = VariableKind::Literal;
+    ConVariable* Ptr = nullptr;
+    ConVariableCached* ThreadOwner = nullptr;
 };

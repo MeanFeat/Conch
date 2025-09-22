@@ -20,10 +20,9 @@ void ConThread::Execute()
             case ConLineKind::Ops:
                 Line.Execute();
                 ++i;
-                for (const ConVariable* Var : Variables)
+                for (const ConVariableCached* Var : ThreadVariables)
                 {
-                    const ConVariableCached* Cached = dynamic_cast<const ConVariableCached*>(Var);
-                    cout << Cached->GetVal() << ", (" << Cached->GetCache() << ") ";
+                    cout << Var->GetVal() << ", (" << Var->GetCache() << ") ";
                 }
                 cout << endl;
                 break;
@@ -62,10 +61,17 @@ void ConThread::Execute()
                 bool bLoop = Line.IsInfiniteLoop();
                 if (Line.HasCounter())
                 {
-                    ConVariableCached* Counter = Line.GetCounterVar();
-                    const int32 NewVal = Counter->GetVal() - 1;
-                    Counter->SetVal(NewVal);
-                    bLoop = NewVal != 0;
+                    ConVariableCached* Counter = Line.GetCounter().GetThread();
+                    if (Counter != nullptr)
+                    {
+                        const int32 NewVal = Counter->GetVal() - 1;
+                        Counter->SetVal(NewVal);
+                        bLoop = NewVal != 0;
+                    }
+                    else
+                    {
+                        bLoop = false;
+                    }
                 }
                 else if (Line.HasCondition())
                 {
@@ -137,7 +143,7 @@ void ConThread::Execute()
 void ConThread::UpdateCycleCount()
 {
     ConCompilable::UpdateCycleCount();
-    const int32 VarCount = int32(Variables.size());
+    const int32 VarCount = int32(ThreadVariables.size());
     for (ConLine& Line : Lines)
     {
         Line.UpdateCycleCount(VarCount);
@@ -145,9 +151,9 @@ void ConThread::UpdateCycleCount()
     }
 }
 
-void ConThread::SetVariables(const vector<ConVariable*>& InVariables)
+void ConThread::SetVariables(const vector<ConVariableCached*>& InVariables)
 {
-    Variables = InVariables;
+    ThreadVariables = InVariables;
 }
 
 void ConThread::SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&& CachedVars,

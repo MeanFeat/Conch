@@ -2,6 +2,8 @@
 
 #include "errors.h"
 
+#include <array>
+
 ConLine::~ConLine()
 {
 }
@@ -55,27 +57,39 @@ void ConLine::UpdateCycleCount(const int32 VarCount)
         }
 
         int32 ThreadTouches = 0;
-        if (Left != nullptr)
+        std::array<ConVariableCached*, 3> Owners = {};
+        auto TrackOwner = [&](const VariableRef& Ref)
         {
-            if (const auto* Cached = dynamic_cast<const ConVariableCached*>(Left))
+            if (!Ref.TouchesThread())
             {
-                ++ThreadTouches;
+                return;
             }
+            ConVariableCached* Owner = Ref.GetThreadOwner();
+            if (Owner == nullptr)
+            {
+                return;
+            }
+            for (int32 Index = 0; Index < ThreadTouches; ++Index)
+            {
+                if (Owners[Index] == Owner)
+                {
+                    return;
+                }
+            }
+            Owners[ThreadTouches++] = Owner;
+        };
+
+        if (Left.IsValid())
+        {
+            TrackOwner(Left);
         }
-        if (Right != nullptr && Right != Left)
+        if (Right.IsValid())
         {
-            if (const auto* Cached = dynamic_cast<const ConVariableCached*>(Right))
-            {
-                ++ThreadTouches;
-            }
+            TrackOwner(Right);
         }
-        if (Kind == ConLineKind::Redo && Counter != nullptr)
+        if (Kind == ConLineKind::Redo && Counter.IsValid())
         {
-            // Counter is always a cached variable, ensure it's counted once
-            if (Counter != Left && Counter != Right)
-            {
-                ++ThreadTouches;
-            }
+            TrackOwner(Counter);
         }
         AddCycles(BaseCost + VarCount * ThreadTouches);
         break;
@@ -90,18 +104,18 @@ void ConLine::SetOps(const vector<ConBaseOp*>& InOps, ConSourceLocation InLocati
     this->Ops = InOps;
     Kind = ConLineKind::Ops;
     Condition = ConConditionOp::None;
-    Left = nullptr;
-    Right = nullptr;
+    Left = VariableRef();
+    Right = VariableRef();
     Skip = 0;
     LoopExitIndex = -1;
     TargetIndex = -1;
-    Counter = nullptr;
+    Counter = VariableRef();
     bInfiniteLoop = false;
     Invert = false;
     Location = InLocation;
 }
 
-void ConLine::SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert, ConSourceLocation InLocation)
+void ConLine::SetIf(const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const int32 SkipCount, const bool bInvert, const ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::If;
@@ -112,12 +126,12 @@ void ConLine::SetIf(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32
     Invert = bInvert;
     LoopExitIndex = -1;
     TargetIndex = -1;
-    Counter = nullptr;
+    Counter = VariableRef();
     bInfiniteLoop = false;
     Location = InLocation;
 }
 
-void ConLine::SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, int32 ExitIndex, ConSourceLocation InLocation)
+void ConLine::SetLoop(const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const bool bInvert, const int32 ExitIndex, const ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::Loop;
@@ -128,12 +142,12 @@ void ConLine::SetLoop(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, boo
     LoopExitIndex = ExitIndex;
     Skip = 0;
     TargetIndex = -1;
-    Counter = nullptr;
+    Counter = VariableRef();
     bInfiniteLoop = false;
     Location = InLocation;
 }
 
-void ConLine::SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bInfinite, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, ConSourceLocation InLocation)
+void ConLine::SetRedo(const int32 TargetIndex, VariableRef CounterVar, const bool bInfinite, const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const bool bInvert, const ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::Redo;
@@ -149,7 +163,7 @@ void ConLine::SetRedo(int32 TargetIndex, ConVariableCached* CounterVar, bool bIn
     Location = InLocation;
 }
 
-void ConLine::SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, bool bInvert, ConSourceLocation InLocation)
+void ConLine::SetJump(const int32 TargetIndex, const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const bool bInvert, const ConSourceLocation InLocation)
 {
     Ops.clear();
     Kind = ConLineKind::Jump;
@@ -160,7 +174,7 @@ void ConLine::SetJump(int32 TargetIndex, ConConditionOp Op, ConVariable* Lhs, Co
     Invert = bInvert;
     Skip = 0;
     LoopExitIndex = -1;
-    Counter = nullptr;
+    Counter = VariableRef();
     bInfiniteLoop = false;
     Location = InLocation;
 }
@@ -172,7 +186,7 @@ bool ConLine::EvaluateCondition() const
         return Invert ? false : true;
     }
 
-    if (Left == nullptr || Right == nullptr)
+    if (!Left.IsValid() || !Right.IsValid())
     {
         throw ConRuntimeError(Location, "Condition requires two operands");
     }
@@ -181,13 +195,13 @@ bool ConLine::EvaluateCondition() const
     switch (Condition)
     {
     case ConConditionOp::GTR:
-        Result = Left->GetVal() > Right->GetVal();
+        Result = Left.Read() > Right.Read();
         break;
     case ConConditionOp::LSR:
-        Result = Left->GetVal() < Right->GetVal();
+        Result = Left.Read() < Right.Read();
         break;
     case ConConditionOp::EQL:
-        Result = Left->GetVal() == Right->GetVal();
+        Result = Left.Read() == Right.Read();
         break;
     default:
         break;
