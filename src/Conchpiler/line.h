@@ -19,6 +19,7 @@ public:
     virtual  ~ConLine() override;
     virtual void Execute() override;
     virtual void UpdateCycleCount() override;
+    void UpdateCycleCount(int32 VarCount);
     void SetOps(const vector<ConBaseOp*>& Ops);
     void SetCondition(ConConditionOp Op, ConVariable* Lhs, ConVariable* Rhs, int32 SkipCount, bool bInvert);
     bool IsConditional() const { return Condition != ConConditionOp::None; }

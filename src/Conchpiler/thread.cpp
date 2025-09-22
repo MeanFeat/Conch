@@ -43,8 +43,7 @@ void ConThread::UpdateCycleCount()
     const int32 VarCount = int32(Variables.size());
     for (ConLine& Line : Lines)
     {
-        Line.UpdateCycleCount();
-        Line.AddCycles(VarCount);
+        Line.UpdateCycleCount(VarCount);
         AddCycles(Line.GetCycleCount());
     }
 }
