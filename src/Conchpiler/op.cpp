@@ -67,7 +67,7 @@ void ConDivOp::Execute()
 void ConSetOp::Execute()
 {
     ConVariableCached *Dst = GetArgAs<ConVariableCached*>(0);
-    const ConVariableCached *Src = GetArgAs<ConVariableCached*>(1);
+    const ConVariable *Src = GetArgAs<ConVariable*>(1);
     Dst->SetVal(Src->GetVal());
 }
 

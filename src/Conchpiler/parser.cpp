@@ -34,8 +34,15 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
         const std::string& Tok = Tokens.at(i);
         if (Tok == "SET")
         {
-            ConVariable* Dst = Stack.back(); Stack.pop_back();
+            assert(Stack.size() >= 2);
+
+            ConVariable* RawDst = Stack.back();
+            ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(RawDst);
+            assert(Dst != nullptr && "SET destination must be a cached variable");
+            Stack.pop_back();
+
             ConVariable* Src = Stack.back(); Stack.pop_back();
+
             OpStorage.emplace_back(std::make_unique<ConSetOp>(std::vector<ConVariable*>{Dst, Src}));
             Ops.push_back(OpStorage.back().get());
             Stack.push_back(Dst);
