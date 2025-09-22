@@ -66,15 +66,17 @@ void ConDivOp::Execute()
 
 void ConSetOp::Execute()
 {
-    ConVariableCached *Dst = GetArgAs<ConVariableCached*>(0);
-    const ConVariableCached *Src = GetArgAs<ConVariableCached*>(1);
+    assert(dynamic_cast<ConVariableCached*>(GetArgs().at(0)) != nullptr);
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    const ConVariable* Src = GetArgAs<ConVariable*>(1);
     Dst->SetVal(Src->GetVal());
 }
 
 void ConSwpOp::Execute()
 {
-    ConVariableCached *Dst = GetArgAs<ConVariableCached*>(0);
-    Dst->Swap();   
+    assert(dynamic_cast<ConVariableCached*>(GetArgs().at(0)) != nullptr);
+    ConVariableCached* Dst = GetArgAs<ConVariableCached*>(0);
+    Dst->Swap();
 }
 
 

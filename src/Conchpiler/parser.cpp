@@ -1,15 +1,18 @@
 #include "parser.h"
 #include <sstream>
 #include <cctype>
+#include <array>
 
 ConParser::ConParser()
 {
-    VarStorage.emplace_back(std::make_unique<ConVariableCached>());
-    VarMap["X"] = VarStorage.back().get();
-    VarStorage.emplace_back(std::make_unique<ConVariableCached>());
-    VarMap["Y"] = VarStorage.back().get();
-    VarStorage.emplace_back(std::make_unique<ConVariableCached>());
-    VarMap["Z"] = VarStorage.back().get();
+    const std::array<std::string, 3> BaseVars = {"X", "Y", "Z"};
+    for (const std::string& Name : BaseVars)
+    {
+        VarStorage.emplace_back(std::make_unique<ConVariableCached>());
+        ConVariableCached* Var = VarStorage.back().get();
+        VarMap[Name] = Var;
+        VarMap[Name + "C"] = Var->GetCacheVariable();
+    }
 }
 
 ConVariable* ConParser::ResolveToken(const std::string& Tok)
@@ -36,6 +39,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
         {
             ConVariable* Dst = Stack.back(); Stack.pop_back();
             ConVariable* Src = Stack.back(); Stack.pop_back();
+            assert(dynamic_cast<ConVariableCached*>(Dst) != nullptr);
             OpStorage.emplace_back(std::make_unique<ConSetOp>(std::vector<ConVariable*>{Dst, Src}));
             Ops.push_back(OpStorage.back().get());
             Stack.push_back(Dst);
@@ -43,6 +47,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<std::string>& T
         else if (Tok == "SWP")
         {
             ConVariable* Var = Stack.back(); Stack.pop_back();
+            assert(dynamic_cast<ConVariableCached*>(Var) != nullptr);
             OpStorage.emplace_back(std::make_unique<ConSwpOp>(std::vector<ConVariable*>{Var}));
             Ops.push_back(OpStorage.back().get());
             Stack.push_back(Var);
