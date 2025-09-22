@@ -2,7 +2,6 @@
 
 #include "common.h"
 
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,7 +17,8 @@ struct Token
 {
     TokenType Type = TokenType::Identifier;
     std::string Lexeme;
-    std::optional<int32> Literal;
+    int32 Literal = 0;
+    bool bHasLiteral = false;
     int32 Line = 0;
     int32 Column = 0;
 };

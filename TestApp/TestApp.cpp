@@ -1,6 +1,5 @@
 #include "../src/Conchpiler/parser.h"
 #include <iostream>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,8 +20,9 @@ int main(int Argc, char* Argv[])
         "SWP X",
         "SET X SUB Z 2"
     };
-    std::optional<ConThread> ThreadResult = Parser.Parse(Lines);
-    if (!ThreadResult)
+    ConThread Thread;
+    const bool bParsed = Parser.Parse(Lines, Thread);
+    if (!bParsed)
     {
         std::cout << "Failed to parse program:\n";
         for (const std::string& Error : Parser.GetErrors())
@@ -32,8 +32,8 @@ int main(int Argc, char* Argv[])
         return 1;
     }
 
-    ThreadResult->UpdateCycleCount();
-    ThreadResult->Execute();
-    std::cout << "Total cycles: " << ThreadResult->GetCycleCount() << std::endl;
+    Thread.UpdateCycleCount();
+    Thread.Execute();
+    std::cout << "Total cycles: " << Thread.GetCycleCount() << std::endl;
     return 0;
 }

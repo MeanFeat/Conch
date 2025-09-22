@@ -51,9 +51,13 @@ void ConParser::ReportError(const Token& Tok, const std::string& Message)
 
 ConVariable* ConParser::ResolveToken(const Token& Tok)
 {
-    if (Tok.Type == TokenType::Number && Tok.Literal.has_value())
+    if (Tok.Type == TokenType::Number)
     {
-        ConstStorage.emplace_back(std::make_unique<ConVariableAbsolute>(Tok.Literal.value()));
+        if (!Tok.bHasLiteral)
+        {
+            return nullptr;
+        }
+        ConstStorage.emplace_back(std::make_unique<ConVariableAbsolute>(Tok.Literal));
         return ConstStorage.back().get();
     }
 
@@ -392,7 +396,7 @@ struct ParsedLine
     ConSourceLocation Location;
 };
 
-std::optional<ConThread> ConParser::Parse(const std::vector<std::string>& Lines)
+bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThread)
 {
     Errors.clear();
     bHadError = false;
@@ -404,7 +408,7 @@ std::optional<ConThread> ConParser::Parse(const std::vector<std::string>& Lines)
     if (!ScanErrors.empty())
     {
         bHadError = true;
-        return std::nullopt;
+        return false;
     }
 
     std::vector<ParsedLine> Parsed;
@@ -603,7 +607,7 @@ std::optional<ConThread> ConParser::Parse(const std::vector<std::string>& Lines)
 
     if (bHadError)
     {
-        return std::nullopt;
+        return false;
     }
 
     std::vector<ConVariable*> Vars;
@@ -635,6 +639,7 @@ std::optional<ConThread> ConParser::Parse(const std::vector<std::string>& Lines)
         }
         Thread.ConstructLine(Line);
     }
-    return Thread;
+    OutThread = Thread;
+    return true;
 }
 

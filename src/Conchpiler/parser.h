@@ -3,7 +3,6 @@
 #include "scanner.h"
 #include "thread.h"
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,7 +11,7 @@ struct ConParser
 {
     ConParser();
 
-    std::optional<ConThread> Parse(const vector<string>& Lines);
+    bool Parse(const vector<string>& Lines, ConThread& OutThread);
     const std::vector<std::string>& GetErrors() const { return Errors; }
 
 private:

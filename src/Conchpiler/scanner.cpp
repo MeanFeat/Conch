@@ -97,10 +97,12 @@ void Scanner::ScanLine(const std::string& LineText, const int32 LineNumber, Toke
             try
             {
                 Tok.Literal = std::stoi(Lexeme);
+                Tok.bHasLiteral = true;
             }
             catch (const std::exception&)
             {
                 AddError(LineNumber, Column, "Numeric literal out of range");
+                Tok.bHasLiteral = false;
                 Tok.Literal = 0;
             }
             OutLine.Tokens.push_back(std::move(Tok));
