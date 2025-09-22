@@ -23,11 +23,11 @@ private:
     std::vector<std::unique_ptr<ConVariableAbsolute>> ConstStorage;
     std::vector<std::unique_ptr<ConVariableList>> ListStorage;
     std::vector<std::unique_ptr<ConBaseOp>> OpStorage;
-    std::unordered_map<std::string, ConVariable*> VarMap;
+    std::unordered_map<std::string, VariableRef> VarMap;
     std::vector<std::string> Errors;
     bool bHadError = false;
 
-    ConVariable* ResolveToken(const Token& Tok);
+    VariableRef ResolveToken(const Token& Tok);
     std::vector<ConBaseOp*> ParseTokens(const std::vector<Token>& Tokens);
     void ReportError(const Token& Tok, const std::string& Message);
     void ReportError(const ConParseError& Error);

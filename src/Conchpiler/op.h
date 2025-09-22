@@ -4,16 +4,25 @@
 #include "errors.h"
 #include "variable.h"
 
+#include <vector>
+
+struct ThreadMixSummary
+{
+    int32 UniqueThreadVars = 0;
+    bool HasCacheReads = false;
+    bool UsesLiteral = false;
+};
+
 struct ConBaseOp : public ConCompilable
 {
     ConBaseOp() = default;
-    explicit ConBaseOp( const vector<ConVariable*> &InArgs) : Args(InArgs) {}
+    explicit ConBaseOp(const vector<VariableRef>& InArgs);
     virtual ~ConBaseOp() override {};
-    virtual void SetArgs(vector<ConVariable*> Args);
+    virtual void SetArgs(vector<VariableRef> Args);
     virtual int32 GetMaxArgs() const { return 2; }
     virtual bool HasReturn() const { return false; }
-    virtual ConVariable* GetReturn() const;
-    const vector<ConVariable*> &GetArgs() const;
+    virtual VariableRef GetReturn() const;
+    const vector<VariableRef>& GetArgs() const;
     int32 GetArgsCount() const { return int32(GetArgs().size()); }
 
     void SetSourceLocation(const ConSourceLocation& InLocation) { Location = InLocation; }
@@ -23,34 +32,32 @@ struct ConBaseOp : public ConCompilable
     virtual void UpdateCycleCount(int32 VarCount);
     virtual int32 GetBaseCycleCost() const { return 1; }
     virtual int32 GetVariableAccessCount() const;
+    const ThreadMixSummary& GetThreadMixSummary() const { return MixSummary; }
+    bool MixesMultipleThreadVariables() const;
+    std::vector<ConVariableCached*> GetThreadParticipants() const;
 
-    template<typename T>
-    T GetArgAs(int32 Index);
+protected:
+    vector<VariableRef>& GetMutableArgs();
+    VariableRef& GetArgRef(int32 Index);
+    const VariableRef& GetArgRef(int32 Index) const;
+    void RefreshThreadMixSummary();
 
 private:
-    vector<ConVariable*> Args;
+    vector<VariableRef> Args;
     ConSourceLocation Location;
+    ThreadMixSummary MixSummary;
 };
 
-template <typename T>
-T ConBaseOp::GetArgAs(const int32 Index)
-{
-    if (Index < 0 || static_cast<size_t>(Index) >= GetArgs().size())
-    {
-        return nullptr;
-    }
-    return dynamic_cast<T>(GetArgs().at(Index));
-}
-
-// if has return operate on last 2 args and place result in arg[0] if in-place, operate on 2 args and replace value of first 
+// if has return operate on last 2 args and place result in arg[0] if in-place, operate on 2 args and replace value of first
 struct ConContextualReturnOp : public ConBaseOp
 {
     using ConBaseOp::ConBaseOp;
     virtual int32 GetMaxArgs() const override { return 3; }
     virtual bool HasReturn() const override { return GetArgsCount() > 2; }
     virtual void Execute() override {}
-    ConVariable* GetDstArg() const;
-    vector<const ConVariable*> GetSrcArg() const;
+    VariableRef& GetDstArg();
+    const VariableRef& GetDstArg() const;
+    vector<VariableRef> GetSrcArg() const;
 };
 
 enum class ConBinaryOpKind
@@ -66,11 +73,14 @@ enum class ConBinaryOpKind
 
 struct ConBinaryOp final : public ConContextualReturnOp
 {
-    ConBinaryOp(ConBinaryOpKind InKind, const std::vector<ConVariable*>& InArgs);
+    ConBinaryOp(ConBinaryOpKind InKind, const std::vector<VariableRef>& InArgs);
     virtual void Execute() override;
 
 private:
     ConBinaryOpKind Kind;
+    bool bHasPrecomputed = false;
+    int32 PrecomputedValue = 0;
+    int32 Compute(int32 Lhs, int32 Rhs) const;
 };
 
 struct ConIncrOp final : public ConBaseOp

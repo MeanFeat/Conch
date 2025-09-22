@@ -43,8 +43,8 @@ void ConParser::Reset()
     {
         VarStorage.emplace_back(std::make_unique<ConVariableCached>());
         ConVariableCached* Var = VarStorage.back().get();
-        VarMap[Name] = Var;
-        VarMap[Name + "C"] = Var->GetCacheVariable();
+        VarMap[Name] = VariableRef::ThreadVar(Var);
+        VarMap[Name + "C"] = VariableRef::CacheVar(Var);
     }
 }
 
@@ -63,7 +63,7 @@ void ConParser::ReportError(const ConParseError& Error)
     Errors.push_back(FormatErrorMessage(Error.Location, Error.what()));
 }
 
-ConVariable* ConParser::ResolveToken(const Token& Tok)
+VariableRef ConParser::ResolveToken(const Token& Tok)
 {
     if (Tok.Type == TokenType::Number)
     {
@@ -72,7 +72,7 @@ ConVariable* ConParser::ResolveToken(const Token& Tok)
             throw ConParseError(Tok, "Numeric token missing literal value");
         }
         ConstStorage.emplace_back(std::make_unique<ConVariableAbsolute>(Tok.Literal));
-        return ConstStorage.back().get();
+        return VariableRef::LiteralVar(ConstStorage.back().get());
     }
 
     const std::string& Lexeme = Tok.Lexeme;
@@ -101,17 +101,18 @@ ConVariable* ConParser::ResolveToken(const Token& Tok)
         {
             ListStorage.emplace_back(std::make_unique<ConVariableList>());
             const std::string Name = "LIST" + std::to_string(static_cast<int32>(ListStorage.size()) - 1);
-            VarMap[Name] = ListStorage.back().get();
+            VarMap[Name] = VariableRef::ListVar(ListStorage.back().get());
         }
-        VarMap[Lexeme] = ListStorage.at(Index).get();
-        return ListStorage.at(Index).get();
+        VariableRef Ref = VariableRef::ListVar(ListStorage.at(Index).get());
+        VarMap[Lexeme] = Ref;
+        return Ref;
     }
 
     try
     {
         const int32 Val = std::stoi(Lexeme);
         ConstStorage.emplace_back(std::make_unique<ConVariableAbsolute>(Val));
-        return ConstStorage.back().get();
+        return VariableRef::LiteralVar(ConstStorage.back().get());
     }
     catch (const std::exception&)
     {
@@ -125,19 +126,18 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
     const size_t InitialOpStorageSize = OpStorage.size();
     struct StackEntry
     {
-        ConVariable* Value = nullptr;
+        VariableRef Value;
         Token TokenInfo;
     };
 
     std::vector<StackEntry> Stack;
 
-    auto AddOp = [&](std::unique_ptr<ConBaseOp> Op, const StackEntry& ResultEntry, const Token& OpToken)
+    auto PushEntry = [&](const VariableRef& Ref, const Token& Tok)
     {
-        OpStorage.emplace_back(std::move(Op));
-        ConBaseOp* Stored = OpStorage.back().get();
-        Stored->SetSourceLocation({OpToken.Line, OpToken.Column});
-        Ops.push_back(Stored);
-        Stack.push_back(ResultEntry);
+        StackEntry Entry;
+        Entry.Value = Ref;
+        Entry.TokenInfo = Tok;
+        Stack.push_back(Entry);
     };
 
     auto PopValue = [&](const Token& Context) -> StackEntry
@@ -148,18 +148,20 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         }
         StackEntry Entry = Stack.back();
         Stack.pop_back();
+        if (!Entry.Value.IsValid())
+        {
+            throw ConParseError(Entry.TokenInfo, "Invalid value before '" + Context.Lexeme + "'");
+        }
         return Entry;
     };
 
-    auto PopCached = [&](const Token& Context) -> StackEntry
+    auto PopThread = [&](const Token& Context) -> StackEntry
     {
         StackEntry Entry = PopValue(Context);
-        ConVariableCached* Cached = dynamic_cast<ConVariableCached*>(Entry.Value);
-        if (Cached == nullptr)
+        if (!Entry.Value.IsThread())
         {
             throw ConParseError(Entry.TokenInfo, "Expected thread variable");
         }
-        Entry.Value = Cached;
         return Entry;
     };
 
@@ -171,9 +173,8 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
     auto ResolveInlineDestination = [&](int32 Index) -> StackEntry
     {
         const Token& DestToken = Tokens.at(Index - 1);
-        ConVariable* RawDst = ResolveToken(DestToken);
-        ConVariableCached* Dst = dynamic_cast<ConVariableCached*>(RawDst);
-        if (Dst == nullptr)
+        VariableRef Dst = ResolveToken(DestToken);
+        if (!Dst.IsThread())
         {
             throw ConParseError(DestToken, "Inline destination must be a thread variable");
         }
@@ -181,6 +182,15 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         Entry.Value = Dst;
         Entry.TokenInfo = DestToken;
         return Entry;
+    };
+
+    auto StoreOp = [&](std::unique_ptr<ConBaseOp> Op, const StackEntry& ResultEntry, const Token& OpToken)
+    {
+        Op->SetSourceLocation({OpToken.Line, OpToken.Column});
+        OpStorage.emplace_back(std::move(Op));
+        ConBaseOp* Stored = OpStorage.back().get();
+        Ops.push_back(Stored);
+        Stack.push_back(ResultEntry);
     };
 
     static const std::unordered_map<std::string, ConBinaryOpKind> BinaryOpMap =
@@ -210,16 +220,16 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
 
                 if (Tok.Lexeme == "SET")
                 {
-                    StackEntry DstEntry = PopCached(Tok);
+                    StackEntry DstEntry = PopThread(Tok);
                     StackEntry SrcEntry = PopValue(Tok);
-                    std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
-                    AddOp(std::make_unique<ConSetOp>(Args), DstEntry, Tok);
+                    std::vector<VariableRef> Args = {DstEntry.Value, SrcEntry.Value};
+                    StoreOp(std::make_unique<ConSetOp>(Args), DstEntry, Tok);
                 }
                 else if (Tok.Lexeme == "SWP")
                 {
-                    StackEntry VarEntry = PopCached(Tok);
-                    std::vector<ConVariable*> Args = {VarEntry.Value};
-                    AddOp(std::make_unique<ConSwpOp>(Args), VarEntry, Tok);
+                    StackEntry VarEntry = PopThread(Tok);
+                    std::vector<VariableRef> Args = {VarEntry.Value};
+                    StoreOp(std::make_unique<ConSwpOp>(Args), VarEntry, Tok);
                 }
                 else if (BinaryIt != BinaryOpMap.end())
                 {
@@ -229,30 +239,30 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
                         StackEntry SrcA = PopValue(Tok);
                         StackEntry SrcB = PopValue(Tok);
                         StackEntry DstEntry = ResolveInlineDestination(i);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, SrcA.Value, SrcB.Value};
-                        AddOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, SrcA.Value, SrcB.Value};
+                        StoreOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
                         i -= 2;
                     }
                     else
                     {
-                        StackEntry DstEntry = PopCached(Tok);
+                        StackEntry DstEntry = PopThread(Tok);
                         StackEntry SrcEntry = PopValue(Tok);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
-                        AddOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, SrcEntry.Value};
+                        StoreOp(std::make_unique<ConBinaryOp>(Kind, Args), DstEntry, Tok);
                     }
                 }
                 else if (Tok.Lexeme == "INCR" || Tok.Lexeme == "DECR")
                 {
-                    StackEntry DstEntry = PopCached(Tok);
+                    StackEntry DstEntry = PopThread(Tok);
                     if (Tok.Lexeme == "INCR")
                     {
-                        std::vector<ConVariable*> Args = {DstEntry.Value};
-                        AddOp(std::make_unique<ConIncrOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value};
+                        StoreOp(std::make_unique<ConIncrOp>(Args), DstEntry, Tok);
                     }
                     else
                     {
-                        std::vector<ConVariable*> Args = {DstEntry.Value};
-                        AddOp(std::make_unique<ConDecrOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value};
+                        StoreOp(std::make_unique<ConDecrOp>(Args), DstEntry, Tok);
                     }
                 }
                 else if (Tok.Lexeme == "NOT")
@@ -261,15 +271,15 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
                     {
                         StackEntry SrcEntry = PopValue(Tok);
                         StackEntry DstEntry = ResolveInlineDestination(i);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, SrcEntry.Value};
-                        AddOp(std::make_unique<ConNotOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, SrcEntry.Value};
+                        StoreOp(std::make_unique<ConNotOp>(Args), DstEntry, Tok);
                         i -= 2;
                     }
                     else
                     {
-                        StackEntry DstEntry = PopCached(Tok);
-                        std::vector<ConVariable*> Args = {DstEntry.Value};
-                        AddOp(std::make_unique<ConNotOp>(Args), DstEntry, Tok);
+                        StackEntry DstEntry = PopThread(Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value};
+                        StoreOp(std::make_unique<ConNotOp>(Args), DstEntry, Tok);
                     }
                 }
                 else if (Tok.Lexeme == "POP")
@@ -278,16 +288,16 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
                     {
                         StackEntry ListEntry = PopValue(Tok);
                         StackEntry DstEntry = ResolveInlineDestination(i);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value};
-                        AddOp(std::make_unique<ConPopOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, ListEntry.Value};
+                        StoreOp(std::make_unique<ConPopOp>(Args), DstEntry, Tok);
                         i -= 2;
                     }
                     else
                     {
-                        StackEntry DstEntry = PopCached(Tok);
+                        StackEntry DstEntry = PopThread(Tok);
                         StackEntry ListEntry = PopValue(Tok);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value};
-                        AddOp(std::make_unique<ConPopOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, ListEntry.Value};
+                        StoreOp(std::make_unique<ConPopOp>(Args), DstEntry, Tok);
                     }
                 }
                 else if (Tok.Lexeme == "AT")
@@ -297,35 +307,29 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
                         StackEntry ListEntry = PopValue(Tok);
                         StackEntry IndexEntry = PopValue(Tok);
                         StackEntry DstEntry = ResolveInlineDestination(i);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
-                        AddOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
+                        StoreOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
                         i -= 2;
                     }
                     else
                     {
-                        StackEntry DstEntry = PopCached(Tok);
+                        StackEntry DstEntry = PopThread(Tok);
                         StackEntry ListEntry = PopValue(Tok);
                         StackEntry IndexEntry = PopValue(Tok);
-                        std::vector<ConVariable*> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
-                        AddOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
+                        std::vector<VariableRef> Args = {DstEntry.Value, ListEntry.Value, IndexEntry.Value};
+                        StoreOp(std::make_unique<ConAtOp>(Args), DstEntry, Tok);
                     }
                 }
                 else
                 {
-                    ConVariable* Value = ResolveToken(Tok);
-                    StackEntry Entry;
-                    Entry.Value = Value;
-                    Entry.TokenInfo = Tok;
-                    Stack.push_back(Entry);
+                    VariableRef Value = ResolveToken(Tok);
+                    PushEntry(Value, Tok);
                 }
             }
             else
             {
-                ConVariable* Value = ResolveToken(Tok);
-                StackEntry Entry;
-                Entry.Value = Value;
-                Entry.TokenInfo = Tok;
-                Stack.push_back(Entry);
+                VariableRef Value = ResolveToken(Tok);
+                PushEntry(Value, Tok);
             }
         }
     }
@@ -357,14 +361,14 @@ struct ParsedLine
     std::string Label;
     ParsedLineType Type = ParsedLineType::Ops;
     ConConditionOp Cmp = ConConditionOp::None;
-    ConVariable* Lhs = nullptr;
-    ConVariable* Rhs = nullptr;
+    VariableRef Lhs;
+    VariableRef Rhs;
     bool Invert = false;
     int32 SkipCount = 0;
     int32 LoopExitIndex = -1;
     int32 TargetIndex = -1;
     std::string TargetLabel;
-    ConVariableCached* Counter = nullptr;
+    VariableRef Counter;
     bool InfiniteLoop = false;
     std::vector<ConBaseOp*> Ops;
     ConSourceLocation Location;
@@ -462,13 +466,12 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                 }
                 else
                 {
-                    ConVariable* CounterVar = ResolveToken(Tokens[1]);
-                    ConVariableCached* Cached = dynamic_cast<ConVariableCached*>(CounterVar);
-                    if (Cached == nullptr)
+                    VariableRef CounterVar = ResolveToken(Tokens[1]);
+                    if (!CounterVar.IsThread())
                     {
                         throw ConParseError(Tokens[1], "REDO counter must be a thread variable");
                     }
-                    P.Counter = Cached;
+                    P.Counter = CounterVar;
                 }
             }
             else if (Command == "JUMP")
@@ -589,7 +592,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         return false;
     }
 
-    std::vector<ConVariable*> Vars;
+    std::vector<ConVariableCached*> Vars;
     for (auto& V : VarStorage)
     {
         Vars.push_back(V.get());
