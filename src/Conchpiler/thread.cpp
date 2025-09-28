@@ -20,22 +20,31 @@ void ConThread::Execute()
             case ConLineKind::Ops:
                 Line.Execute();
                 ++i;
-                for (const ConVariableCached* Var : ThreadVariables)
+                if (bTraceExecution)
                 {
-                    cout << Var->GetVal() << ", (" << Var->GetCache() << ") ";
+                    for (const ConVariableCached* Var : ThreadVariables)
+                    {
+                        cout << Var->GetVal() << ", (" << Var->GetCache() << ") ";
+                    }
+                    cout << endl;
                 }
-                cout << endl;
                 break;
             case ConLineKind::If:
                 if (!Line.EvaluateCondition())
                 {
                     i += Line.GetSkipCount() + 1;
-                    cout << "FALSE" << endl;
+                    if (bTraceExecution)
+                    {
+                        cout << "FALSE" << endl;
+                    }
                 }
                 else
                 {
                     ++i;
-                    cout << "TRUE" << endl;
+                    if (bTraceExecution)
+                    {
+                        cout << "TRUE" << endl;
+                    }
                 }
                 break;
             case ConLineKind::Loop:
@@ -170,6 +179,68 @@ void ConThread::SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&
 void ConThread::ConstructLine(const ConLine &Line)
 {
     Lines.push_back(Line);
+}
+
+void ConThread::SetTraceEnabled(const bool bEnabled)
+{
+    bTraceExecution = bEnabled;
+}
+
+ConVariableCached* ConThread::GetThreadVar(const size_t Index)
+{
+    if (Index >= ThreadVariables.size())
+    {
+        return nullptr;
+    }
+    return ThreadVariables[Index];
+}
+
+const ConVariableCached* ConThread::GetThreadVar(const size_t Index) const
+{
+    if (Index >= ThreadVariables.size())
+    {
+        return nullptr;
+    }
+    return ThreadVariables[Index];
+}
+
+int32 ConThread::GetThreadValue(const size_t Index) const
+{
+    const ConVariableCached* Var = GetThreadVar(Index);
+    return Var != nullptr ? Var->GetVal() : 0;
+}
+
+int32 ConThread::GetThreadCacheValue(const size_t Index) const
+{
+    const ConVariableCached* Var = GetThreadVar(Index);
+    return Var != nullptr ? Var->GetCache() : 0;
+}
+
+void ConThread::SetThreadValue(const size_t Index, const int32 Value)
+{
+    ConVariableCached* Var = GetThreadVar(Index);
+    if (Var != nullptr)
+    {
+        Var->SetVal(Value);
+    }
+}
+
+ConVariableList* ConThread::GetListVar(const size_t Index)
+{
+    if (Index >= OwnedListStorage.size())
+    {
+        return nullptr;
+    }
+    return OwnedListStorage[Index].get();
+}
+
+const ConVariableList* ConThread::GetListVar(const size_t Index) const
+{
+    if (Index >= OwnedListStorage.size())
+    {
+        return nullptr;
+    }
+    return OwnedListStorage[Index].get();
 }
 
 void ConThread::ReportRuntimeError(const ConRuntimeError& Error)

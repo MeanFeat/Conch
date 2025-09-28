@@ -232,3 +232,54 @@ Not allowed in real code.
 * Runtime mistakes (for example, trying to `POP` into a literal or feeding a `NOT` without a source) bubble up through `ConThread`. The thread stops immediately, `HadRuntimeError()` flips to true, and `GetRuntimeErrors()` returns the formatted messages. They are also echoed to stderr so you do not miss them while watching register dumps.
 * Cycle-count instrumentation is frozen as soon as a runtime error fires. That means you can experiment with aggressive inline tricks or risky LIST juggling without corrupting your performance baseline—fix the reported issue and re-run to compare cycles apples-to-apples.
 * When optimising for cycles, lean into the new diagnostics: use them to validate that an inline rewrite still targets thread variables (mis-tagged literals are a common culprit), and iterate on cache-heavy strategies that keep the distinct-variable multiplier low.
+
+## Prototype Puzzle IDE
+
+`TestApp` now doubles as a lightweight IDE for loading puzzle metadata, editing Conch programs, and running regression tests against curated inputs. It is intentionally barebones but geared toward tinkering: you can enter code directly in the console or pull it from disk, run the provided test battery, and immediately see whether you have squeezed the cycle count past your previous best.
+
+### Running the IDE
+
+```
+conch_ide <path/to/puzzle.json> [optional_code_file]
+```
+
+* The puzzle file drives the entire session. It defines the narrative description, a starter (or "naive") solution, and a set of test data to validate against.
+* Pass an optional second argument to preload a solution file. Otherwise the starter program from the puzzle is loaded.
+* Inside the tool you can view puzzle notes, edit code, reload from disk, or run the full test suite. Cycle estimates are reported up front so you can see how far you are from the recorded personal best.
+
+### Puzzle JSON Layout
+
+```json
+{
+  "title": "Example Puzzle",
+  "description": "Tell the story of the challenge and what the output should look like.",
+  "starter": ["SET X 0", "RET"],
+  "tests": [
+    {
+      "name": "Basic smoke test",
+      "registers": {"X": 3, "Y": 0},
+      "lists": [
+        {"index": 0, "values": [1, 2, 3]}
+      ],
+      "expectedRegisters": {"X": 9},
+      "expectedLists": [
+        {"index": 0, "values": [1, 2, 3, 9]}
+      ]
+    }
+  ],
+  "history": [
+    {"label": "Naive", "cycles": 240},
+    {"label": "Personal Best", "cycles": 121}
+  ]
+}
+```
+
+Key details:
+
+* **`starter` / `starterCode` / `naiveSolution`**: any of these keys can supply the initial program. The IDE falls back to a minimal `RET` if none are provided, so you are never forced to start from scratch.
+* **`tests`**: every test case may seed registers (`X`, `Y`, `Z`) and any number of `LIST` variables before execution begins. Expectations are optional but will flag mismatches so you can confirm behaviour after aggressive optimisations.
+* **`history`**: optional running log of noteworthy cycle counts. The IDE surfaces the best historical record so you always know the score you are trying to beat.
+
+### Optimisation Feedback
+
+When you run the suite the IDE prints a static cycle estimate and compares it with the best entry in the puzzle history. That keeps the optimisation loop tight: tweak your inline ops, lean on caches to minimise variable touches, and instantly confirm whether the latest rewrite saved cycles. Expectation failures and runtime errors are reported with their locations so debugging remains straightforward even as your solutions become more intricate.

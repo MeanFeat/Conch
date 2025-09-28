@@ -1,0 +1,17 @@
+{
+  "title": "Sample Warmup",
+  "description": "Start with something simple: prove your toolchain works by leaving the registers untouched.",
+  "starter": [
+    "SET X 0"
+  ],
+  "tests": [
+    {
+      "name": "Baseline",
+      "registers": {"X": 0, "Y": 0, "Z": 0},
+      "expectedRegisters": {"X": 0, "Y": 0, "Z": 0}
+    }
+  ],
+  "history": [
+    {"label": "Naive", "cycles": 1}
+  ]
+}
