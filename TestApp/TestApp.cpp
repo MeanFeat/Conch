@@ -15,6 +15,31 @@
 
 namespace
 {
+const char* const COLOR_RESET = "\033[0m";
+const char* const COLOR_HEADING = "\033[1;36m";
+const char* const COLOR_MENU = "\033[1;33m";
+const char* const COLOR_SUCCESS = "\033[1;32m";
+const char* const COLOR_ERROR = "\033[1;31m";
+const char* const COLOR_INFO = "\033[0;36m";
+
+bool EqualsIgnoreCase(const std::string& A, const std::string& B)
+{
+    if (A.size() != B.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < A.size(); ++i)
+    {
+        const unsigned char Left = static_cast<unsigned char>(A[i]);
+        const unsigned char Right = static_cast<unsigned char>(B[i]);
+        if (std::tolower(Left) != std::tolower(Right))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::string Trim(const std::string& Text)
 {
     const auto First = std::find_if_not(Text.begin(), Text.end(), [](unsigned char Ch) { return std::isspace(Ch); });
@@ -73,7 +98,7 @@ std::vector<std::pair<std::string, int>> SortRegisterMap(const std::unordered_ma
 
 void ShowPuzzleOverview(const PuzzleData& Puzzle)
 {
-    std::cout << "=== " << Puzzle.Title << " ===\n";
+    std::cout << COLOR_HEADING << "=== " << Puzzle.Title << " ===" << COLOR_RESET << "\n";
     if (!Puzzle.Description.empty())
     {
         std::cout << Puzzle.Description << "\n";
@@ -128,10 +153,10 @@ void ShowPuzzleOverview(const PuzzleData& Puzzle)
 
 void ShowCode(const std::vector<std::string>& Code)
 {
-    std::cout << "Current program (" << Code.size() << " line" << (Code.size() == 1 ? "" : "s") << "):\n";
+    std::cout << COLOR_HEADING << "Current program" << COLOR_RESET << " (" << Code.size() << " line" << (Code.size() == 1 ? "" : "s") << "):\n";
     for (size_t i = 0; i < Code.size(); ++i)
     {
-        std::cout << std::setw(3) << (i + 1) << " | " << Code[i] << std::endl;
+        std::cout << COLOR_MENU << std::setw(3) << (i + 1) << COLOR_RESET << " | " << Code[i] << std::endl;
     }
     std::cout << std::endl;
 }
@@ -175,7 +200,7 @@ bool SaveCodeToFile(const std::string& Path, const std::vector<std::string>& Cod
 
 void EditCode(std::vector<std::string>& Code)
 {
-    std::cout << "Enter new program lines. Type '.done' on a blank line to finish." << std::endl;
+    std::cout << COLOR_INFO << "Enter new program lines. Type '.exit' on a blank line to finish." << COLOR_RESET << std::endl;
     std::vector<std::string> NewCode;
     while (true)
     {
@@ -186,7 +211,7 @@ void EditCode(std::vector<std::string>& Code)
             break;
         }
         const std::string Trimmed = Trim(Line);
-        if (Trimmed == ".done")
+        if (EqualsIgnoreCase(Trimmed, ".exit"))
         {
             break;
         }
@@ -279,7 +304,7 @@ bool ComputeStaticCycleCount(const std::vector<std::string>& Code, int& OutCycle
 
 void PrintThreadState(const ConThread& Thread)
 {
-    std::cout << "    Registers:";
+    std::cout << "    " << COLOR_INFO << "Registers:" << COLOR_RESET;
     for (size_t i = 0; i < Thread.GetThreadVarCount(); ++i)
     {
         std::cout << " " << RegisterName(i) << "=" << Thread.GetThreadValue(i) << " (C=" << Thread.GetThreadCacheValue(i) << ")";
@@ -287,7 +312,7 @@ void PrintThreadState(const ConThread& Thread)
     std::cout << std::endl;
     if (Thread.GetListVarCount() > 0)
     {
-        std::cout << "    Lists:";
+        std::cout << "    " << COLOR_INFO << "Lists:" << COLOR_RESET;
         for (size_t i = 0; i < Thread.GetListVarCount(); ++i)
         {
             const ConVariableList* List = Thread.GetListVar(i);
@@ -302,11 +327,11 @@ void PrintThreadState(const ConThread& Thread)
     }
 }
 
-void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
+void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code, bool bDebugTrace)
 {
     if (Code.empty())
     {
-        std::cout << "No code to execute. Use the editor or load a file first.\n";
+        std::cout << COLOR_ERROR << "No code to execute. Use the editor or load a file first.\n" << COLOR_RESET;
         return;
     }
 
@@ -314,15 +339,15 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
     int StaticCycles = 0;
     if (!ComputeStaticCycleCount(Code, StaticCycles, ParseErrors))
     {
-        std::cout << "Syntax errors detected:\n";
+        std::cout << COLOR_ERROR << "Syntax errors detected:" << COLOR_RESET << "\n";
         for (const std::string& Error : ParseErrors)
         {
-            std::cout << "  " << Error << std::endl;
+            std::cout << COLOR_ERROR << "  " << Error << COLOR_RESET << std::endl;
         }
         return;
     }
 
-    std::cout << "Static cycle estimate: " << StaticCycles << std::endl;
+    std::cout << COLOR_INFO << "Static cycle estimate: " << StaticCycles << COLOR_RESET << std::endl;
     if (!Puzzle.History.empty())
     {
         const auto Best = std::min_element(Puzzle.History.begin(), Puzzle.History.end(), [](const PuzzleHistoryEntry& A, const PuzzleHistoryEntry& B)
@@ -333,50 +358,55 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
         {
             if (StaticCycles < Best->Cycles)
             {
-                std::cout << "You are on track to beat the recorded best of " << Best->Cycles << " cycles (" << Best->Label << ")!" << std::endl;
+                std::cout << COLOR_SUCCESS << "You are on track to beat the recorded best of " << Best->Cycles << " cycles (" << Best->Label << ")!" << COLOR_RESET << std::endl;
             }
             else if (StaticCycles == Best->Cycles)
             {
-                std::cout << "Matched the best recorded cycle count of " << Best->Cycles << " (" << Best->Label << ")." << std::endl;
+                std::cout << COLOR_INFO << "Matched the best recorded cycle count of " << Best->Cycles << " (" << Best->Label << ")." << COLOR_RESET << std::endl;
             }
             else
             {
-                std::cout << "Need " << (StaticCycles - Best->Cycles) << " fewer cycles to beat the best record (" << Best->Label << ")." << std::endl;
+                std::cout << COLOR_INFO << "Need " << (StaticCycles - Best->Cycles) << " fewer cycles to beat the best record (" << Best->Label << ")." << COLOR_RESET << std::endl;
             }
         }
     }
     std::cout << std::endl;
+
+    if (bDebugTrace)
+    {
+        std::cout << COLOR_INFO << "Debug trace enabled: register states will be printed after each executed line." << COLOR_RESET << std::endl;
+    }
 
     bool bAllPassed = true;
 
     for (size_t TestIndex = 0; TestIndex < Puzzle.Tests.size(); ++TestIndex)
     {
         const PuzzleTestCase& Test = Puzzle.Tests[TestIndex];
-        std::cout << "Running test " << (TestIndex + 1) << "/" << Puzzle.Tests.size() << ": " << Test.Name << std::endl;
+        std::cout << COLOR_HEADING << "Running test " << (TestIndex + 1) << "/" << Puzzle.Tests.size() << ": " << Test.Name << COLOR_RESET << std::endl;
 
         ConParser Parser;
         ConThread Thread;
         if (!Parser.Parse(Code, Thread))
         {
-            std::cout << "  Parse failed during execution.\n";
+            std::cout << COLOR_ERROR << "  Parse failed during execution." << COLOR_RESET << "\n";
             for (const std::string& Error : Parser.GetErrors())
             {
-                std::cout << "    " << Error << std::endl;
+                std::cout << COLOR_ERROR << "    " << Error << COLOR_RESET << std::endl;
             }
             bAllPassed = false;
             continue;
         }
 
-        Thread.SetTraceEnabled(false);
+        Thread.SetTraceEnabled(bDebugTrace);
         Thread.UpdateCycleCount();
 
         std::vector<std::string> SetupMessages;
         if (!ApplyTestSetup(Test, Thread, SetupMessages))
         {
-            std::cout << "  Test setup failed:" << std::endl;
+            std::cout << COLOR_ERROR << "  Test setup failed:" << COLOR_RESET << std::endl;
             for (const std::string& Message : SetupMessages)
             {
-                std::cout << "    " << Message << std::endl;
+                std::cout << COLOR_ERROR << "    " << Message << COLOR_RESET << std::endl;
             }
             bAllPassed = false;
             continue;
@@ -385,10 +415,10 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
         Thread.Execute();
         if (Thread.HadRuntimeError())
         {
-            std::cout << "  Runtime error:" << std::endl;
+            std::cout << COLOR_ERROR << "  Runtime error:" << COLOR_RESET << std::endl;
             for (const std::string& Error : Thread.GetRuntimeErrors())
             {
-                std::cout << "    " << Error << std::endl;
+                std::cout << COLOR_ERROR << "    " << Error << COLOR_RESET << std::endl;
             }
             bAllPassed = false;
             continue;
@@ -397,16 +427,16 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
         const std::vector<std::string> ExpectationIssues = ValidateExpectations(Test.Expectation, Thread);
         if (!ExpectationIssues.empty())
         {
-            std::cout << "  Expectation mismatch:" << std::endl;
+            std::cout << COLOR_ERROR << "  Expectation mismatch:" << COLOR_RESET << std::endl;
             for (const std::string& Issue : ExpectationIssues)
             {
-                std::cout << "    " << Issue << std::endl;
+                std::cout << COLOR_ERROR << "    " << Issue << COLOR_RESET << std::endl;
             }
             bAllPassed = false;
         }
         else
         {
-            std::cout << "  Test passed." << std::endl;
+            std::cout << COLOR_SUCCESS << "  Test passed." << COLOR_RESET << std::endl;
         }
 
         PrintThreadState(Thread);
@@ -415,25 +445,27 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
 
     if (bAllPassed)
     {
-        std::cout << "All tests passed. Tweak inline ops and cache usage to chase even fewer cycles!" << std::endl;
+        std::cout << COLOR_SUCCESS << "All tests passed. Tweak inline ops and cache usage to chase even fewer cycles!" << COLOR_RESET << std::endl;
     }
     else
     {
-        std::cout << "Some tests failed. Use the diagnostics above to adjust your strategy." << std::endl;
+        std::cout << COLOR_ERROR << "Some tests failed. Use the diagnostics above to adjust your strategy." << COLOR_RESET << std::endl;
     }
     std::cout << std::endl;
 }
 
-void PrintMenu()
+void PrintMenu(bool bDebugTraceEnabled)
 {
-    std::cout << "Menu:\n"
+    std::cout << COLOR_MENU << "Menu:\n"
               << "  1) Show puzzle overview\n"
               << "  2) Show current code\n"
               << "  3) Edit code\n"
               << "  4) Load code from file\n"
               << "  5) Save code to file\n"
               << "  6) Run tests\n"
-              << "  7) Quit\n";
+              << "  7) Toggle debug trace (" << (bDebugTraceEnabled ? "ON" : "OFF") << ")\n"
+              << "  8) Quit\n"
+              << COLOR_RESET;
 }
 
 int ReadMenuChoice()
@@ -447,7 +479,7 @@ int ReadMenuChoice()
         {
             return Choice;
         }
-        std::cout << "Invalid selection. Please enter a number from the menu." << std::endl;
+        std::cout << COLOR_ERROR << "Invalid selection. Please enter a number from the menu." << COLOR_RESET << std::endl;
     }
 }
 }
@@ -479,14 +511,15 @@ int main(int Argc, char* Argv[])
         }
     }
 
-    std::cout << "Loaded puzzle: " << Puzzle.Title << "\n";
+    std::cout << COLOR_HEADING << "Loaded puzzle: " << Puzzle.Title << COLOR_RESET << "\n";
     ShowPuzzleOverview(Puzzle);
     ShowCode(Code);
 
     bool bRunning = true;
+    bool bDebugTraceEnabled = false;
     while (bRunning && std::cin)
     {
-        PrintMenu();
+        PrintMenu(bDebugTraceEnabled);
         const int Choice = ReadMenuChoice();
         std::cout << std::endl;
         switch (Choice)
@@ -527,18 +560,22 @@ int main(int Argc, char* Argv[])
             break;
         }
         case 6:
-            RunTests(Puzzle, Code);
+            RunTests(Puzzle, Code, bDebugTraceEnabled);
             break;
         case 7:
+            bDebugTraceEnabled = !bDebugTraceEnabled;
+            std::cout << COLOR_INFO << "Debug trace " << (bDebugTraceEnabled ? "enabled" : "disabled") << "." << COLOR_RESET << std::endl;
+            break;
+        case 8:
             bRunning = false;
             break;
         default:
-            std::cout << "Unknown option." << std::endl;
+            std::cout << COLOR_ERROR << "Unknown option." << COLOR_RESET << std::endl;
             break;
         }
     }
 
-    std::cout << "Good luck reducing those cycles!" << std::endl;
+    std::cout << COLOR_SUCCESS << "Good luck reducing those cycles!" << COLOR_RESET << std::endl;
     return 0;
 }
 

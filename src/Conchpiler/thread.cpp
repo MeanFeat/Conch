@@ -4,7 +4,81 @@
 #include <exception>
 #include <iostream>
 #include <ostream>
+#include <sstream>
+#include <string>
 #include <utility>
+
+namespace
+{
+std::string RegisterName(size_t Index)
+{
+    switch (Index)
+    {
+    case 0:
+        return "X";
+    case 1:
+        return "Y";
+    case 2:
+        return "Z";
+    default:
+        break;
+    }
+    std::ostringstream Oss;
+    Oss << "R" << Index;
+    return Oss.str();
+}
+
+std::string FormatRegisterState(const vector<ConVariableCached*>& ThreadVariables)
+{
+    if (ThreadVariables.empty())
+    {
+        return "<no registers>";
+    }
+
+    std::ostringstream Oss;
+    for (size_t i = 0; i < ThreadVariables.size(); ++i)
+    {
+        if (i > 0)
+        {
+            Oss << ' ';
+        }
+        const ConVariableCached* Var = ThreadVariables[i];
+        if (Var != nullptr)
+        {
+            Oss << RegisterName(i) << '=' << Var->GetVal() << "(C=" << Var->GetCache() << ')';
+        }
+        else
+        {
+            Oss << RegisterName(i) << "=<undef>";
+        }
+    }
+    return Oss.str();
+}
+
+int32 ResolveLineNumber(const ConSourceLocation& Location, size_t Index)
+{
+    if (Location.IsValid())
+    {
+        return Location.Line;
+    }
+    return static_cast<int32>(Index + 1);
+}
+
+void PrintTrace(const char* Label, const ConSourceLocation& Location, size_t Index, const vector<ConVariableCached*>& ThreadVariables)
+{
+    static const char* const TRACE_COLOR = "\033[35m";
+    static const char* const RESET_COLOR = "\033[0m";
+
+    std::ostringstream Oss;
+    Oss << TRACE_COLOR << "[Line " << ResolveLineNumber(Location, Index);
+    if (Label != nullptr && Label[0] != '\0')
+    {
+        Oss << ' ' << Label;
+    }
+    Oss << "] " << FormatRegisterState(ThreadVariables) << RESET_COLOR;
+    std::cout << Oss.str() << std::endl;
+}
+}
 
 void ConThread::Execute()
 {
@@ -13,47 +87,57 @@ void ConThread::Execute()
     while (i < Lines.size())
     {
         ConLine& Line = Lines[i];
+        const ConSourceLocation Location = Line.GetLocation();
+        const size_t LineIndex = i;
         try
         {
             switch (Line.GetKind())
             {
             case ConLineKind::Ops:
+            {
                 Line.Execute();
                 ++i;
                 if (bTraceExecution)
                 {
-                    for (const ConVariableCached* Var : ThreadVariables)
-                    {
-                        cout << Var->GetVal() << ", (" << Var->GetCache() << ") ";
-                    }
-                    cout << endl;
+                    PrintTrace("OPS", Location, LineIndex, ThreadVariables);
                 }
                 break;
+            }
             case ConLineKind::If:
-                if (!Line.EvaluateCondition())
+            {
+                const bool bCondition = Line.EvaluateCondition();
+                if (!bCondition)
                 {
                     i += Line.GetSkipCount() + 1;
-                    if (bTraceExecution)
-                    {
-                        cout << "FALSE" << endl;
-                    }
                 }
                 else
                 {
                     ++i;
-                    if (bTraceExecution)
-                    {
-                        cout << "TRUE" << endl;
-                    }
+                }
+                if (bTraceExecution)
+                {
+                    PrintTrace(bCondition ? "IF=TRUE" : "IF=FALSE", Location, LineIndex, ThreadVariables);
                 }
                 break;
+            }
             case ConLineKind::Loop:
-                if (Line.HasCondition() && !Line.EvaluateCondition())
+            {
+                bool bRuns = true;
+                if (Line.HasCondition())
                 {
-                    const int32 ExitIndex = Line.GetLoopExitIndex();
-                    if (ExitIndex >= 0)
+                    const bool bCondition = Line.EvaluateCondition();
+                    if (!bCondition)
                     {
-                        i = static_cast<size_t>(ExitIndex);
+                        bRuns = false;
+                        const int32 ExitIndex = Line.GetLoopExitIndex();
+                        if (ExitIndex >= 0)
+                        {
+                            i = static_cast<size_t>(ExitIndex);
+                        }
+                        else
+                        {
+                            ++i;
+                        }
                     }
                     else
                     {
@@ -64,7 +148,12 @@ void ConThread::Execute()
                 {
                     ++i;
                 }
+                if (bTraceExecution)
+                {
+                    PrintTrace(bRuns ? "LOOP" : "LOOP-SKIP", Location, LineIndex, ThreadVariables);
+                }
                 break;
+            }
             case ConLineKind::Redo:
             {
                 bool bLoop = Line.IsInfiniteLoop();
@@ -103,6 +192,10 @@ void ConThread::Execute()
                 {
                     ++i;
                 }
+                if (bTraceExecution)
+                {
+                    PrintTrace(bLoop ? "REDO" : "REDO-EXIT", Location, LineIndex, ThreadVariables);
+                }
                 break;
             }
             case ConLineKind::Jump:
@@ -128,11 +221,21 @@ void ConThread::Execute()
                 {
                     ++i;
                 }
+                if (bTraceExecution)
+                {
+                    PrintTrace(bJump ? "JUMP" : "NO-JUMP", Location, LineIndex, ThreadVariables);
+                }
                 break;
             }
             default:
+            {
                 ++i;
+                if (bTraceExecution)
+                {
+                    PrintTrace("STEP", Location, LineIndex, ThreadVariables);
+                }
                 break;
+            }
             }
         }
         catch (const ConRuntimeError& Error)
