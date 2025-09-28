@@ -10,7 +10,6 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <optional>
 #include <sstream>
 #include <unordered_map>
 
@@ -38,7 +37,8 @@ std::string PromptLine(const std::string& Message)
 std::string RegisterName(size_t Index)
 {
     static const char* Names[] = {"X", "Y", "Z"};
-    if (Index < std::size(Names))
+    const size_t Count = sizeof(Names) / sizeof(Names[0]);
+    if (Index < Count)
     {
         return Names[Index];
     }
@@ -203,14 +203,14 @@ bool ApplyTestSetup(const PuzzleTestCase& Test, ConThread& Thread, std::vector<s
     bool bSuccess = true;
     for (const auto& Pair : Test.InitialRegisters)
     {
-        const std::optional<int> IndexOpt = ParseRegisterName(Pair.first);
-        if (!IndexOpt)
+        int RegisterIndex = 0;
+        if (!ParseRegisterName(Pair.first, RegisterIndex))
         {
             Messages.push_back("Unknown register '" + Pair.first + "'");
             bSuccess = false;
             continue;
         }
-        Thread.SetThreadValue(static_cast<size_t>(*IndexOpt), Pair.second);
+        Thread.SetThreadValue(static_cast<size_t>(RegisterIndex), Pair.second);
     }
     for (const PuzzleListSpec& Spec : Test.InitialLists)
     {
@@ -232,13 +232,13 @@ std::vector<std::string> ValidateExpectations(const PuzzleExpectation& Expectati
     std::vector<std::string> Issues;
     for (const auto& Pair : Expectation.Registers)
     {
-        const std::optional<int> IndexOpt = ParseRegisterName(Pair.first);
-        if (!IndexOpt)
+        int RegisterIndex = 0;
+        if (!ParseRegisterName(Pair.first, RegisterIndex))
         {
             Issues.push_back("Expectation references unknown register '" + Pair.first + "'");
             continue;
         }
-        const int Actual = Thread.GetThreadValue(static_cast<size_t>(*IndexOpt));
+        const int Actual = Thread.GetThreadValue(static_cast<size_t>(RegisterIndex));
         if (Actual != Pair.second)
         {
             Issues.push_back("Expected " + Pair.first + "=" + std::to_string(Pair.second) + ", got " + std::to_string(Actual));
@@ -262,18 +262,19 @@ std::vector<std::string> ValidateExpectations(const PuzzleExpectation& Expectati
     return Issues;
 }
 
-std::optional<int> ComputeStaticCycleCount(const std::vector<std::string>& Code, std::vector<std::string>& Errors)
+bool ComputeStaticCycleCount(const std::vector<std::string>& Code, int& OutCycles, std::vector<std::string>& Errors)
 {
     ConParser Parser;
     ConThread Thread;
     if (!Parser.Parse(Code, Thread))
     {
         Errors = Parser.GetErrors();
-        return std::nullopt;
+        return false;
     }
     Thread.SetTraceEnabled(false);
     Thread.UpdateCycleCount();
-    return Thread.GetCycleCount();
+    OutCycles = Thread.GetCycleCount();
+    return true;
 }
 
 void PrintThreadState(const ConThread& Thread)
@@ -310,8 +311,8 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
     }
 
     std::vector<std::string> ParseErrors;
-    std::optional<int> StaticCycles = ComputeStaticCycleCount(Code, ParseErrors);
-    if (!StaticCycles)
+    int StaticCycles = 0;
+    if (!ComputeStaticCycleCount(Code, StaticCycles, ParseErrors))
     {
         std::cout << "Syntax errors detected:\n";
         for (const std::string& Error : ParseErrors)
@@ -321,7 +322,7 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
         return;
     }
 
-    std::cout << "Static cycle estimate: " << *StaticCycles << std::endl;
+    std::cout << "Static cycle estimate: " << StaticCycles << std::endl;
     if (!Puzzle.History.empty())
     {
         const auto Best = std::min_element(Puzzle.History.begin(), Puzzle.History.end(), [](const PuzzleHistoryEntry& A, const PuzzleHistoryEntry& B)
@@ -330,17 +331,17 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code)
         });
         if (Best != Puzzle.History.end())
         {
-            if (*StaticCycles < Best->Cycles)
+            if (StaticCycles < Best->Cycles)
             {
                 std::cout << "You are on track to beat the recorded best of " << Best->Cycles << " cycles (" << Best->Label << ")!" << std::endl;
             }
-            else if (*StaticCycles == Best->Cycles)
+            else if (StaticCycles == Best->Cycles)
             {
                 std::cout << "Matched the best recorded cycle count of " << Best->Cycles << " (" << Best->Label << ")." << std::endl;
             }
             else
             {
-                std::cout << "Need " << (*StaticCycles - Best->Cycles) << " fewer cycles to beat the best record (" << Best->Label << ")." << std::endl;
+                std::cout << "Need " << (StaticCycles - Best->Cycles) << " fewer cycles to beat the best record (" << Best->Label << ")." << std::endl;
             }
         }
     }

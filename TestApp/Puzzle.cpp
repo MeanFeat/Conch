@@ -108,22 +108,25 @@ const SimpleJsonValue* FindFirstOf(const SimpleJsonValue& Object, std::initializ
 }
 }
 
-std::optional<int> ParseRegisterName(const std::string& Name)
+bool ParseRegisterName(const std::string& Name, int& OutIndex)
 {
     const std::string Upper = ToUpper(Name);
     if (Upper == "X")
     {
-        return 0;
+        OutIndex = 0;
+        return true;
     }
     if (Upper == "Y")
     {
-        return 1;
+        OutIndex = 1;
+        return true;
     }
     if (Upper == "Z")
     {
-        return 2;
+        OutIndex = 2;
+        return true;
     }
-    return std::nullopt;
+    return false;
 }
 
 bool LoadPuzzleFromFile(const std::string& Path, PuzzleData& OutData, std::string& OutError)

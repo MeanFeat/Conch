@@ -2,7 +2,6 @@
 
 #include "SimpleJson.h"
 
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -49,5 +48,5 @@ struct PuzzleData
 
 bool LoadPuzzleFromFile(const std::string& Path, PuzzleData& OutData, std::string& OutError);
 
-std::optional<int> ParseRegisterName(const std::string& Name);
+bool ParseRegisterName(const std::string& Name, int& OutIndex);
 
