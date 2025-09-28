@@ -64,7 +64,11 @@ int32 ResolveLineNumber(const ConSourceLocation& Location, size_t Index)
     return static_cast<int32>(Index + 1);
 }
 
-void PrintTrace(const char* Label, const ConSourceLocation& Location, size_t Index, const vector<ConVariableCached*>& ThreadVariables)
+void PrintTrace(const char* Label,
+                const ConSourceLocation& Location,
+                size_t Index,
+                const std::string& SourceText,
+                const vector<ConVariableCached*>& ThreadVariables)
 {
     static const char* const TRACE_COLOR = "\033[35m";
     static const char* const RESET_COLOR = "\033[0m";
@@ -75,7 +79,15 @@ void PrintTrace(const char* Label, const ConSourceLocation& Location, size_t Ind
     {
         Oss << ' ' << Label;
     }
-    Oss << "] " << FormatRegisterState(ThreadVariables) << RESET_COLOR;
+    if (!SourceText.empty())
+    {
+        Oss << "] " << SourceText << " | ";
+    }
+    else
+    {
+        Oss << "] ";
+    }
+    Oss << FormatRegisterState(ThreadVariables) << RESET_COLOR;
     std::cout << Oss.str() << std::endl;
 }
 }
@@ -99,7 +111,7 @@ void ConThread::Execute()
                 ++i;
                 if (bTraceExecution)
                 {
-                    PrintTrace("OPS", Location, LineIndex, ThreadVariables);
+                    PrintTrace("OPS", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -116,7 +128,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bCondition ? "IF=TRUE" : "IF=FALSE", Location, LineIndex, ThreadVariables);
+                    PrintTrace(bCondition ? "IF=TRUE" : "IF=FALSE", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -150,7 +162,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bRuns ? "LOOP" : "LOOP-SKIP", Location, LineIndex, ThreadVariables);
+                    PrintTrace(bRuns ? "LOOP" : "LOOP-SKIP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -194,7 +206,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bLoop ? "REDO" : "REDO-EXIT", Location, LineIndex, ThreadVariables);
+                    PrintTrace(bLoop ? "REDO" : "REDO-EXIT", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -223,7 +235,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bJump ? "JUMP" : "NO-JUMP", Location, LineIndex, ThreadVariables);
+                    PrintTrace(bJump ? "JUMP" : "NO-JUMP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -232,7 +244,7 @@ void ConThread::Execute()
                 ++i;
                 if (bTraceExecution)
                 {
-                    PrintTrace("STEP", Location, LineIndex, ThreadVariables);
+                    PrintTrace("STEP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
