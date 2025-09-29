@@ -22,6 +22,20 @@ public:
     bool HadRuntimeError() const { return bHadRuntimeError; }
     const std::vector<std::string>& GetRuntimeErrors() const { return RuntimeErrors; }
 
+    void SetTraceEnabled(bool bEnabled);
+    bool IsTraceEnabled() const { return bTraceExecution; }
+
+    size_t GetThreadVarCount() const { return ThreadVariables.size(); }
+    ConVariableCached* GetThreadVar(size_t Index);
+    const ConVariableCached* GetThreadVar(size_t Index) const;
+    int32 GetThreadValue(size_t Index) const;
+    int32 GetThreadCacheValue(size_t Index) const;
+    void SetThreadValue(size_t Index, int32 Value);
+
+    size_t GetListVarCount() const { return OwnedListStorage.size(); }
+    ConVariableList* GetListVar(size_t Index);
+    const ConVariableList* GetListVar(size_t Index) const;
+
 private:
     void ReportRuntimeError(const ConRuntimeError& Error);
     void ResetRuntimeErrors();
@@ -34,4 +48,5 @@ private:
     std::vector<std::unique_ptr<ConBaseOp>> OwnedOpStorage;
     std::vector<std::string> RuntimeErrors;
     bool bHadRuntimeError = false;
+    bool bTraceExecution = true;
 };

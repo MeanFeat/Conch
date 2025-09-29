@@ -154,7 +154,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Puzzle.cpp" />
+    <ClCompile Include="SimpleJson.cpp" />
     <ClCompile Include="TestApp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Puzzle.h" />
+    <ClInclude Include="SimpleJson.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\src\Conchpiler\Conchpiler.vcxproj">

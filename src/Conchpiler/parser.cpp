@@ -372,6 +372,7 @@ struct ParsedLine
     bool InfiniteLoop = false;
     std::vector<ConBaseOp*> Ops;
     ConSourceLocation Location;
+    std::string SourceText;
 };
 
 bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThread)
@@ -393,10 +394,15 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
     std::vector<ParsedLine> Parsed;
     Parsed.reserve(TokenLines.size());
 
-    for (const TokenLine& LineTokens : TokenLines)
+    for (size_t LineIndex = 0; LineIndex < TokenLines.size(); ++LineIndex)
     {
+        const TokenLine& LineTokens = TokenLines[LineIndex];
         ParsedLine P;
         P.Indent = LineTokens.Indent;
+        if (LineIndex < Lines.size())
+        {
+            P.SourceText = Lines[LineIndex];
+        }
 
         std::vector<Token> Tokens = LineTokens.Tokens;
 
@@ -619,6 +625,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             Line.SetJump(P.TargetIndex, P.Cmp, P.Lhs, P.Rhs, P.Invert, P.Location);
             break;
         }
+        Line.SetSourceText(P.SourceText);
         Thread.ConstructLine(Line);
     }
     Thread.SetOwnedStorage(std::move(VarStorage), std::move(ConstStorage), std::move(ListStorage), std::move(OpStorage));

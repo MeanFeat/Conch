@@ -170,6 +170,16 @@ void ConVariableList::Reset()
     }
 }
 
+const vector<int32>& ConVariableList::GetValues() const
+{
+    return Storage;
+}
+
+size_t ConVariableList::Size() const
+{
+    return Storage.size();
+}
+
 VariableRef::VariableRef(const VariableKind InKind, ConVariable* const InPtr, ConVariableCached* const InOwner)
     : Kind(InKind)
     , Ptr(InPtr)

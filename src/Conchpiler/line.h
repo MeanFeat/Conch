@@ -4,6 +4,8 @@
 #include "op.h"
 #include "variable.h"
 
+#include <string>
+
 enum class ConConditionOp
 {
     None,
@@ -45,6 +47,8 @@ public:
     bool HasCounter() const { return Counter.IsThread(); }
     bool IsInfiniteLoop() const { return bInfiniteLoop; }
     const ConSourceLocation& GetLocation() const { return Location; }
+    void SetSourceText(const std::string& Text) { SourceText = Text; }
+    const std::string& GetSourceText() const { return SourceText; }
 
 private:
     // in reverse order of operation
@@ -60,5 +64,6 @@ private:
     bool bInfiniteLoop = false;
     bool Invert = false;
     ConSourceLocation Location;
+    std::string SourceText;
 };
 

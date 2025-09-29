@@ -79,6 +79,8 @@ struct ConVariableList : public ConVariable
     void SetValues(const vector<int32>& Values);
     bool Empty() const;
     void Reset();
+    const vector<int32>& GetValues() const;
+    size_t Size() const;
 
 private:
     vector<int32> Storage;
