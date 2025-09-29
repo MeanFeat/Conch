@@ -216,6 +216,8 @@ void ConThread::Execute()
     ResetRuntimeErrors();
     ResetTraceSnapshot(ThreadVariables);
     size_t i = 0;
+    std::vector<int32> LoopIterations(Lines.size(), 0);
+    constexpr int32 LoopIterationLimit = 9999;
     while (i < Lines.size())
     {
         ConLine& Line = Lines[i];
@@ -254,6 +256,8 @@ void ConThread::Execute()
             }
             case ConLineKind::Loop:
             {
+                const int32 ExitIndex = Line.GetLoopExitIndex();
+                const int32 RedoIndex = ExitIndex > 0 ? ExitIndex - 1 : -1;
                 bool bRuns = true;
                 if (Line.HasCondition())
                 {
@@ -261,7 +265,6 @@ void ConThread::Execute()
                     if (!bCondition)
                     {
                         bRuns = false;
-                        const int32 ExitIndex = Line.GetLoopExitIndex();
                         if (ExitIndex >= 0)
                         {
                             i = static_cast<size_t>(ExitIndex);
@@ -280,9 +283,17 @@ void ConThread::Execute()
                 {
                     ++i;
                 }
+                if (!bRuns && RedoIndex >= 0)
+                {
+                    const size_t RedoIdx = static_cast<size_t>(RedoIndex);
+                    if (RedoIdx < LoopIterations.size())
+                    {
+                        LoopIterations[RedoIdx] = 0;
+                    }
+                }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bRuns ? "LOOP" : "LOOP-SKIP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(bRuns ? "REDO-HEAD" : "REDO-SKIP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -310,6 +321,13 @@ void ConThread::Execute()
 
                 if (bLoop)
                 {
+                    int32& IterationCount = LoopIterations[LineIndex];
+                    ++IterationCount;
+                    if (IterationCount > LoopIterationLimit)
+                    {
+                        throw ConRuntimeError(Location, "Loop exceeded 9999 iterations");
+                    }
+
                     const int32 TargetIndex = Line.GetTargetIndex();
                     if (TargetIndex >= 0)
                     {
@@ -322,6 +340,7 @@ void ConThread::Execute()
                 }
                 else
                 {
+                    LoopIterations[LineIndex] = 0;
                     ++i;
                 }
                 if (bTraceExecution)

@@ -394,11 +394,54 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
     std::vector<ParsedLine> Parsed;
     Parsed.reserve(TokenLines.size());
 
+    struct LoopEntry
+    {
+        int32 Indent;
+        int32 LoopIndex;
+    };
+    std::vector<LoopEntry> LoopStack;
+
+    auto AppendRedoForLoop = [&](const LoopEntry& Entry)
+    {
+        if (Entry.LoopIndex < 0 || Entry.LoopIndex >= static_cast<int32>(Parsed.size()))
+        {
+            return;
+        }
+
+        const ParsedLine& LoopLine = Parsed[Entry.LoopIndex];
+        ParsedLine RedoLine;
+        RedoLine.Indent = LoopLine.Indent;
+        RedoLine.Type = ParsedLineType::Redo;
+        RedoLine.Cmp = LoopLine.Cmp;
+        RedoLine.Lhs = LoopLine.Lhs;
+        RedoLine.Rhs = LoopLine.Rhs;
+        RedoLine.Invert = LoopLine.Invert;
+        RedoLine.Location = LoopLine.Location;
+        if (!LoopLine.SourceText.empty())
+        {
+            RedoLine.SourceText = LoopLine.SourceText + "  (loop check)";
+        }
+        else
+        {
+            RedoLine.SourceText = "REDO";
+        }
+        Parsed.push_back(std::move(RedoLine));
+    };
+
     for (size_t LineIndex = 0; LineIndex < TokenLines.size(); ++LineIndex)
     {
         const TokenLine& LineTokens = TokenLines[LineIndex];
+        const int32 CurrentIndent = LineTokens.Indent;
+
+        while (!LoopStack.empty() && CurrentIndent <= LoopStack.back().Indent)
+        {
+            LoopEntry Entry = LoopStack.back();
+            LoopStack.pop_back();
+            AppendRedoForLoop(Entry);
+        }
+
         ParsedLine P;
-        P.Indent = LineTokens.Indent;
+        P.Indent = CurrentIndent;
         if (LineIndex < Lines.size())
         {
             P.SourceText = Lines[LineIndex];
@@ -447,38 +490,26 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                 P.Lhs = ResolveToken(Tokens[2]);
                 P.Rhs = ResolveToken(Tokens[3]);
             }
-            else if (Command == "LOOP")
-            {
-                P.Type = ParsedLineType::Loop;
-                if (Tokens.size() >= 4 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
-                {
-                    P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
-                    P.Lhs = ResolveToken(Tokens[2]);
-                    P.Rhs = ResolveToken(Tokens[3]);
-                }
-            }
             else if (Command == "REDO")
             {
-                P.Type = ParsedLineType::Redo;
-                if (Tokens.size() == 1)
+                if (Tokens.size() >= 5 && Tokens[1].Type == TokenType::Identifier &&
+                    (Tokens[1].Lexeme == "IF" || Tokens[1].Lexeme == "IFN") &&
+                    Tokens[3].Type == TokenType::Identifier && IsComparisonToken(Tokens[3].Lexeme))
                 {
-                    P.InfiniteLoop = true;
-                }
-                else if (Tokens.size() >= 4 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
-                {
-                    P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
+                    P.Type = ParsedLineType::Loop;
+                    P.Invert = Tokens[1].Lexeme == "IFN";
+                    P.Cmp = ParseComparisonToken(Tokens[3].Lexeme);
                     P.Lhs = ResolveToken(Tokens[2]);
-                    P.Rhs = ResolveToken(Tokens[3]);
+                    P.Rhs = ResolveToken(Tokens[4]);
                 }
                 else
                 {
-                    VariableRef CounterVar = ResolveToken(Tokens[1]);
-                    if (!CounterVar.IsThread())
-                    {
-                        throw ConParseError(Tokens[1], "REDO counter must be a thread variable");
-                    }
-                    P.Counter = CounterVar;
+                    throw ConParseError(CommandToken, "REDO now requires 'IF' followed by a comparison");
                 }
+            }
+            else if (Command == "LOOP")
+            {
+                throw ConParseError(CommandToken, "'LOOP' has been removed; use 'REDO IF' instead");
             }
             else if (Command == "JUMP")
             {
@@ -512,6 +543,21 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         }
 
         Parsed.push_back(std::move(P));
+
+        if (!Parsed.empty() && Parsed.back().Type == ParsedLineType::Loop)
+        {
+            LoopEntry Entry;
+            Entry.Indent = Parsed.back().Indent;
+            Entry.LoopIndex = static_cast<int32>(Parsed.size() - 1);
+            LoopStack.push_back(Entry);
+        }
+    }
+
+    while (!LoopStack.empty())
+    {
+        LoopEntry Entry = LoopStack.back();
+        LoopStack.pop_back();
+        AppendRedoForLoop(Entry);
     }
 
     std::vector<int32> IfStack;
@@ -550,7 +596,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             if (Match < 0)
             {
-                ReportError(Token{}, "REDO must have a matching LOOP");
+                ReportError(Token{}, "Loop check must have a matching REDO IF header");
             }
             else
             {

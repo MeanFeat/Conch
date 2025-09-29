@@ -54,13 +54,9 @@ IFN [CONDITION]
 Cycles: 1 + cost of condition
 Executes block if condition is false.
 
-LOOP [CONDITION]
+REDO IF [LHS] [COMPARISON] [RHS]
 Cycles: 0 + cost of condition if one is supplied
-Marks the start of a loop. When a comparison is attached, the block is skipped if the comparison evaluates to false. Otherwise execution falls through to the next line.
-
-REDO [VAR|CONDITION]
-Cycles: 1 + VarCount × (distinct thread vars touched by the counter and/or condition)
-Matches the most recent LOOP. With a cached variable argument, REDO decrements it and jumps back while the updated value is non-zero. With a comparison it re-evaluates the condition each time to decide whether to loop. When no argument is given, it loops forever (make sure to break out with RET or JUMP).
+Begins a loop block. Indent the loop body beneath the `REDO IF` line; dedenting ends the block. When the comparison evaluates to false the block is skipped entirely. After the body runs, the condition is checked again at a cost of `1 + VarCount ×` (distinct thread vars touched) to decide whether to repeat. Use `REDO IFN` for an inverted check. Loops automatically stop and raise a runtime error if they would iterate more than 9,999 times so you can safely experiment with aggressive optimisations.
 
 Math Instructions:
 
@@ -203,7 +199,7 @@ Syntax restrictions apply; not all commands can be combined inline.
 
 Other Notes:
 
-IF, IFN, LOOP, REDO, JUMP can use EQL, GTR, LSR comparisons.
+IF, IFN, REDO, JUMP can use EQL, GTR, LSR comparisons.
 
 NOOP is for timing/sync in advanced use.
 
@@ -219,7 +215,7 @@ Code Blocks:
 
 Defined by indentation.
 
-No ENDIF, ENDLOOP, etc.
+No ENDIF or other explicit block terminators.
 
 Comments:
 
