@@ -77,14 +77,6 @@ void ConVariableCached::Swap()
     Cache = Temp;
 }
 
-ConVariableCached ConVariableCached::SwapInPlace()
-{
-    const int32 Temp = Val;
-    Val = Cache;
-    Cache = Temp;
-    return *this;
-}
-
 ConVariable* ConVariableCached::GetCacheVariable()
 {
     return &CacheAccessor;
