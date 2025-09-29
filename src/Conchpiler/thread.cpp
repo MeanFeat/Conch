@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -28,31 +29,127 @@ std::string RegisterName(size_t Index)
     return Oss.str();
 }
 
-std::string FormatRegisterState(const vector<ConVariableCached*>& ThreadVariables)
+struct TraceSnapshot
 {
-    if (ThreadVariables.empty())
+    TraceSnapshot() : BoundThread(nullptr) {}
+
+    void Reset(const vector<ConVariableCached*>& ThreadVariables)
     {
-        return "<no registers>";
+        BoundThread = &ThreadVariables;
+        Values.resize(ThreadVariables.size());
+        Caches.resize(ThreadVariables.size());
+        Defined.resize(ThreadVariables.size());
+        for (size_t i = 0; i < ThreadVariables.size(); ++i)
+        {
+            const ConVariableCached* Var = ThreadVariables[i];
+            if (Var != nullptr)
+            {
+                Defined[i] = true;
+                Values[i] = Var->GetVal();
+                Caches[i] = Var->GetCache();
+            }
+            else
+            {
+                Defined[i] = false;
+                Values[i] = 0;
+                Caches[i] = 0;
+            }
+        }
     }
 
+    void EnsureAligned(const vector<ConVariableCached*>& ThreadVariables)
+    {
+        if (BoundThread != &ThreadVariables || Values.size() != ThreadVariables.size())
+        {
+            Reset(ThreadVariables);
+        }
+    }
+
+    const vector<ConVariableCached*>* BoundThread;
+    std::vector<int32> Values;
+    std::vector<int32> Caches;
+    std::vector<bool> Defined;
+};
+
+TraceSnapshot& GetTraceSnapshot()
+{
+    static TraceSnapshot Snapshot;
+    return Snapshot;
+}
+
+void ResetTraceSnapshot(const vector<ConVariableCached*>& ThreadVariables)
+{
+    TraceSnapshot& Snapshot = GetTraceSnapshot();
+    Snapshot.Reset(ThreadVariables);
+}
+
+std::string FormatRegisterState(const vector<ConVariableCached*>& ThreadVariables)
+{
+    TraceSnapshot& Snapshot = GetTraceSnapshot();
+    Snapshot.EnsureAligned(ThreadVariables);
+
     std::ostringstream Oss;
+    bool bAnyChanges = false;
     for (size_t i = 0; i < ThreadVariables.size(); ++i)
     {
-        if (i > 0)
-        {
-            Oss << ' ';
-        }
         const ConVariableCached* Var = ThreadVariables[i];
-        if (Var != nullptr)
+        const bool bDefined = Var != nullptr;
+        const int32 Value = bDefined ? Var->GetVal() : 0;
+        const int32 Cache = bDefined ? Var->GetCache() : 0;
+
+        if (Snapshot.Defined.size() <= i)
         {
-            Oss << RegisterName(i) << '=' << Var->GetVal() << "(C=" << Var->GetCache() << ')';
+            Snapshot.Defined.resize(i + 1, false);
+            Snapshot.Values.resize(i + 1, 0);
+            Snapshot.Caches.resize(i + 1, 0);
+        }
+
+        bool bChanged = Snapshot.Defined[i] != bDefined;
+        if (!bChanged && bDefined)
+        {
+            if (Snapshot.Values[i] != Value || Snapshot.Caches[i] != Cache)
+            {
+                bChanged = true;
+            }
+        }
+
+        if (bChanged)
+        {
+            if (bAnyChanges)
+            {
+                Oss << "  ";
+            }
+            Oss << RegisterName(i) << '=';
+            if (bDefined)
+            {
+                Oss << Value << " (C=" << Cache << ')';
+            }
+            else
+            {
+                Oss << "<undef>";
+            }
+            bAnyChanges = true;
+        }
+
+        Snapshot.Defined[i] = bDefined;
+        if (bDefined)
+        {
+            Snapshot.Values[i] = Value;
+            Snapshot.Caches[i] = Cache;
         }
         else
         {
-            Oss << RegisterName(i) << "=<undef>";
+            Snapshot.Values[i] = 0;
+            Snapshot.Caches[i] = 0;
         }
     }
-    return Oss.str();
+
+    if (!bAnyChanges)
+    {
+        return std::string();
+    }
+
+    return std::string("| ") + Oss.str();
 }
 
 int32 ResolveLineNumber(const ConSourceLocation& Location, size_t Index)
@@ -71,23 +168,45 @@ void PrintTrace(const char* Label,
                 const vector<ConVariableCached*>& ThreadVariables)
 {
     static const char* const TRACE_COLOR = "\033[35m";
+    static const char* const REGISTER_COLOR = "\033[36m";
     static const char* const RESET_COLOR = "\033[0m";
+    static const size_t REGISTER_COLUMN = 64;
 
-    std::ostringstream Oss;
-    Oss << TRACE_COLOR << "[Line " << ResolveLineNumber(Location, Index);
+    std::ostringstream PrefixStream;
+    PrefixStream << "[Line " << ResolveLineNumber(Location, Index);
     if (Label != nullptr && Label[0] != '\0')
     {
-        Oss << ' ' << Label;
+        PrefixStream << ' ' << Label;
     }
     if (!SourceText.empty())
     {
-        Oss << "] " << SourceText << " | ";
+        PrefixStream << "] " << SourceText;
     }
     else
     {
-        Oss << "] ";
+        PrefixStream << "]";
     }
-    Oss << FormatRegisterState(ThreadVariables) << RESET_COLOR;
+
+    const std::string Prefix = PrefixStream.str();
+    const size_t VisiblePrefixLength = Prefix.size();
+    const std::string RegisterState = FormatRegisterState(ThreadVariables);
+
+    std::ostringstream Oss;
+    Oss << TRACE_COLOR << Prefix;
+    if (!RegisterState.empty())
+    {
+        size_t Padding = 1;
+        if (VisiblePrefixLength < REGISTER_COLUMN)
+        {
+            Padding = REGISTER_COLUMN - VisiblePrefixLength;
+        }
+        Oss << std::string(Padding, ' ') << REGISTER_COLOR << RegisterState << RESET_COLOR;
+    }
+    else
+    {
+        Oss << RESET_COLOR;
+    }
+
     std::cout << Oss.str() << std::endl;
 }
 }
@@ -95,6 +214,7 @@ void PrintTrace(const char* Label,
 void ConThread::Execute()
 {
     ResetRuntimeErrors();
+    ResetTraceSnapshot(ThreadVariables);
     size_t i = 0;
     while (i < Lines.size())
     {

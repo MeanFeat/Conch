@@ -247,7 +247,7 @@ conch_ide <path/to/puzzle.json> [optional_code_file]
 * Pass an optional second argument to preload a solution file. Otherwise the starter program from the puzzle is loaded.
 * Inside the tool you can view puzzle notes, edit code, reload from disk, or run the full test suite. Cycle estimates are reported up front so you can see how far you are from the recorded personal best.
 * While editing inside the console, finish by entering `.exit` on a blank line (case-insensitive) once you are happy with the buffer.
-* Flip the "Toggle debug trace" menu option whenever you want to stream per-line register states alongside the exact source line being executed. The live trace is tinted so you can follow each optimisation experiment as it ripples through X, Y, Z, and their caches.
+* Flip the "Toggle debug trace" menu option whenever you want to stream per-line register states alongside the exact source line being executed. The live trace is tinted so you can follow each optimisation experiment as it ripples through X, Y, Z, and their caches, and the cyan register column only appears when values actually change so the important tweaks jump off the screen.
 * Menu highlights, pass/fail banners, and warnings are colour coded to keep the optimisation loop energetic—success pops in green, while actionable errors show up in red.
 
 ### Puzzle JSON Layout
@@ -287,4 +287,4 @@ Key details:
 
 When you run the suite the IDE prints a static cycle estimate and compares it with the best entry in the puzzle history. That keeps the optimisation loop tight: tweak your inline ops, lean on caches to minimise variable touches, and instantly confirm whether the latest rewrite saved cycles. Expectation failures and runtime errors are reported with their locations so debugging remains straightforward even as your solutions become more intricate.
 
-Enable the trace while iterating to see the register read/write pattern and the corresponding source after every executed line. It is a great way to spot wasted cache churn or validate that a clever inline swap actually preserved your invariants before you lock in the change.
+Enable the trace while iterating to see the register read/write pattern and the corresponding source after every executed line. Only changed registers show up in the aligned cyan column, making it easy to spot wasted cache churn or validate that a clever inline swap actually preserved your invariants before you lock in the change.
