@@ -42,7 +42,6 @@ struct ConVariableCached : public ConVariable
     void SetCache(int32 NewVal);
     // swaps the value and the cache
     void Swap();
-    ConVariableCached SwapInPlace();
 
     ConVariable* GetCacheVariable();
     const ConVariable* GetCacheVariable() const;
