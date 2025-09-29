@@ -257,15 +257,7 @@ void ConThread::Execute()
             case ConLineKind::Loop:
             {
                 const int32 ExitIndex = Line.GetLoopExitIndex();
-                if (ExitIndex > 0)
-                {
-                    const size_t RedoIndex = static_cast<size_t>(ExitIndex - 1);
-                    if (RedoIndex < LoopIterations.size())
-                    {
-                        LoopIterations[RedoIndex] = 0;
-                    }
-                }
-
+                const int32 RedoIndex = ExitIndex > 0 ? ExitIndex - 1 : -1;
                 bool bRuns = true;
                 if (Line.HasCondition())
                 {
@@ -273,7 +265,6 @@ void ConThread::Execute()
                     if (!bCondition)
                     {
                         bRuns = false;
-                        const int32 ExitIndex = Line.GetLoopExitIndex();
                         if (ExitIndex >= 0)
                         {
                             i = static_cast<size_t>(ExitIndex);
@@ -291,6 +282,14 @@ void ConThread::Execute()
                 else
                 {
                     ++i;
+                }
+                if (!bRuns && RedoIndex >= 0)
+                {
+                    const size_t RedoIdx = static_cast<size_t>(RedoIndex);
+                    if (RedoIdx < LoopIterations.size())
+                    {
+                        LoopIterations[RedoIdx] = 0;
+                    }
                 }
                 if (bTraceExecution)
                 {
