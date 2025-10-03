@@ -117,12 +117,21 @@ void ShowPuzzleOverview(const PuzzleData& Puzzle)
             }
             std::cout << std::endl;
         }
-        if (!Test.InitialLists.empty())
+        if (!Test.DatInputs.empty())
         {
-            std::cout << "     Lists:";
-            for (const PuzzleListSpec& Spec : Test.InitialLists)
+            std::cout << "     DAT:";
+            for (const PuzzleListSpec& Spec : Test.DatInputs)
             {
-                std::cout << " LIST" << Spec.Index << "=" << FormatListValues(Spec.Values);
+                std::cout << " " << Spec.Name << "=" << FormatListValues(Spec.Values);
+            }
+            std::cout << std::endl;
+        }
+        if (!Test.OutSpecs.empty())
+        {
+            std::cout << "     OUT:";
+            for (const PuzzleOutSpec& Spec : Test.OutSpecs)
+            {
+                std::cout << " " << Spec.Name << "(size=" << Spec.ExpectedSize << ")";
             }
             std::cout << std::endl;
         }
@@ -133,9 +142,9 @@ void ShowPuzzleOverview(const PuzzleData& Puzzle)
             {
                 std::cout << " " << Pair.first << "=" << Pair.second;
             }
-            for (const PuzzleListSpec& Spec : Test.Expectation.Lists)
+            for (const PuzzleListSpec& Spec : Test.Expectation.ExpectedOut)
             {
-                std::cout << " LIST" << Spec.Index << "=" << FormatListValues(Spec.Values);
+                std::cout << " " << Spec.Name << "=" << FormatListValues(Spec.Values);
             }
             std::cout << std::endl;
         }
@@ -237,23 +246,46 @@ bool ApplyTestSetup(const PuzzleTestCase& Test, ConThread& Thread, std::vector<s
         }
         Thread.SetThreadValue(static_cast<size_t>(RegisterIndex), Pair.second);
     }
-    for (const PuzzleListSpec& Spec : Test.InitialLists)
+    for (const PuzzleListSpec& Spec : Test.DatInputs)
     {
-        ConVariableList* List = Thread.GetListVar(static_cast<size_t>(Spec.Index));
+        ConVariableList* List = Thread.FindListVar(Spec.Name);
         if (List == nullptr)
         {
-            Messages.push_back("LIST" + std::to_string(Spec.Index) + " is not defined in this program");
+            Messages.push_back(Spec.Name + " is not defined in this program");
             bSuccess = false;
             continue;
         }
-        List->SetValues(Spec.Values);
+        std::vector<int32> Values;
+        Values.reserve(Spec.Values.size());
+        for (int Value : Spec.Values)
+        {
+            Values.push_back(static_cast<int32>(Value));
+        }
+        List->SetRole(ConListRole::Input);
+        List->SetExpectedSize(std::numeric_limits<size_t>::max());
+        List->SetValues(Values);
+        List->Reset();
+    }
+    for (const PuzzleOutSpec& Spec : Test.OutSpecs)
+    {
+        ConVariableList* List = Thread.FindListVar(Spec.Name);
+        if (List == nullptr)
+        {
+            Messages.push_back(Spec.Name + " is not defined in this program");
+            bSuccess = false;
+            continue;
+        }
+        List->SetRole(ConListRole::Output);
+        List->SetValues(std::vector<int32>());
+        List->SetExpectedSize(static_cast<size_t>(Spec.ExpectedSize));
         List->Reset();
     }
     return bSuccess;
 }
 
-std::vector<std::string> ValidateExpectations(const PuzzleExpectation& Expectation, const ConThread& Thread)
+std::vector<std::string> ValidateExpectations(const PuzzleTestCase& Test, const ConThread& Thread)
 {
+    const PuzzleExpectation& Expectation = Test.Expectation;
     std::vector<std::string> Issues;
     for (const auto& Pair : Expectation.Registers)
     {
@@ -269,19 +301,34 @@ std::vector<std::string> ValidateExpectations(const PuzzleExpectation& Expectati
             Issues.push_back("Expected " + Pair.first + "=" + std::to_string(Pair.second) + ", got " + std::to_string(Actual));
         }
     }
-    for (const PuzzleListSpec& Spec : Expectation.Lists)
+    for (const PuzzleOutSpec& Spec : Test.OutSpecs)
     {
-        const ConVariableList* List = Thread.GetListVar(static_cast<size_t>(Spec.Index));
+        const ConVariableList* List = Thread.FindListVar(Spec.Name);
         if (List == nullptr)
         {
-            Issues.push_back("Expectation references undefined LIST" + std::to_string(Spec.Index));
+            Issues.push_back("Expectation references undefined " + Spec.Name);
+            continue;
+        }
+        const size_t ActualSize = List->Size();
+        const size_t ExpectedSize = static_cast<size_t>(Spec.ExpectedSize);
+        if (ActualSize != ExpectedSize)
+        {
+            Issues.push_back("Expected " + Spec.Name + " size=" + std::to_string(ExpectedSize) + ", got " + std::to_string(ActualSize));
+        }
+    }
+    for (const PuzzleListSpec& Spec : Expectation.ExpectedOut)
+    {
+        const ConVariableList* List = Thread.FindListVar(Spec.Name);
+        if (List == nullptr)
+        {
+            Issues.push_back("Expectation references undefined " + Spec.Name);
             continue;
         }
         const std::vector<int32>& Actual = List->GetValues();
         const std::vector<int> ActualCopy(Actual.begin(), Actual.end());
-        if (Actual.size() != Spec.Values.size() || !std::equal(Actual.begin(), Actual.end(), Spec.Values.begin()))
+        if (ActualCopy.size() != Spec.Values.size() || !std::equal(ActualCopy.begin(), ActualCopy.end(), Spec.Values.begin()))
         {
-            Issues.push_back("Expected LIST" + std::to_string(Spec.Index) + "=" + FormatListValues(Spec.Values) + ", got " + FormatListValues(ActualCopy));
+            Issues.push_back("Expected " + Spec.Name + "=" + FormatListValues(Spec.Values) + ", got " + FormatListValues(ActualCopy));
         }
     }
     return Issues;
@@ -310,17 +357,18 @@ void PrintThreadState(const ConThread& Thread)
         std::cout << " " << RegisterName(i) << "=" << Thread.GetThreadValue(i) << " (C=" << Thread.GetThreadCacheValue(i) << ")";
     }
     std::cout << std::endl;
-    if (Thread.GetListVarCount() > 0)
+    const std::vector<std::string> ListNames = Thread.GetListNames();
+    if (!ListNames.empty())
     {
         std::cout << "    " << COLOR_INFO << "Lists:" << COLOR_RESET;
-        for (size_t i = 0; i < Thread.GetListVarCount(); ++i)
+        for (const std::string& Name : ListNames)
         {
-            const ConVariableList* List = Thread.GetListVar(i);
+            const ConVariableList* List = Thread.FindListVar(Name);
             if (List != nullptr)
             {
                 const std::vector<int32>& Values = List->GetValues();
                 std::vector<int> Copy(Values.begin(), Values.end());
-                std::cout << " LIST" << i << "=" << FormatListValues(Copy);
+                std::cout << " " << Name << "=" << FormatListValues(Copy);
             }
         }
         std::cout << std::endl;
@@ -424,7 +472,7 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code, bo
             continue;
         }
 
-        const std::vector<std::string> ExpectationIssues = ValidateExpectations(Test.Expectation, Thread);
+        const std::vector<std::string> ExpectationIssues = ValidateExpectations(Test, Thread);
         if (!ExpectationIssues.empty())
         {
             std::cout << COLOR_ERROR << "  Expectation mismatch:" << COLOR_RESET << std::endl;

@@ -20,7 +20,8 @@ enum class ConLineKind
     If,
     Loop,
     Redo,
-    Jump
+    Jump,
+    Return
 };
 
 struct ConLine : public ConCompilable
@@ -36,6 +37,7 @@ public:
     void SetLoop(ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, bool bInvert, int32 ExitIndex, ConSourceLocation InLocation);
     void SetRedo(int32 TargetIndex, VariableRef CounterVar, bool bInfinite, ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, bool bInvert, ConSourceLocation InLocation);
     void SetJump(int32 TargetIndex, ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, bool bInvert, ConSourceLocation InLocation);
+    void SetReturn(VariableRef RetVal, bool bHasValue, ConSourceLocation InLocation);
 
     ConLineKind GetKind() const { return Kind; }
     bool HasCondition() const { return Condition != ConConditionOp::None; }
@@ -49,6 +51,8 @@ public:
     const ConSourceLocation& GetLocation() const { return Location; }
     void SetSourceText(const std::string& Text) { SourceText = Text; }
     const std::string& GetSourceText() const { return SourceText; }
+    bool HasReturnValue() const { return bHasReturnValue; }
+    const VariableRef& GetReturnValue() const { return ReturnValue; }
 
 private:
     // in reverse order of operation
@@ -65,5 +69,7 @@ private:
     bool Invert = false;
     ConSourceLocation Location;
     std::string SourceText;
+    VariableRef ReturnValue;
+    bool bHasReturnValue = false;
 };
 

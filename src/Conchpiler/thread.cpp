@@ -1,6 +1,8 @@
 #include "common.h"
 #include "thread.h"
 #include "errors.h"
+#include <algorithm>
+#include <cctype>
 #include <exception>
 #include <iostream>
 #include <ostream>
@@ -27,6 +29,16 @@ std::string RegisterName(size_t Index)
     std::ostringstream Oss;
     Oss << "R" << Index;
     return Oss.str();
+}
+
+std::string ToUpperCopy(const std::string& Text)
+{
+    std::string Result = Text;
+    std::transform(Result.begin(), Result.end(), Result.begin(), [](unsigned char Ch)
+    {
+        return static_cast<char>(std::toupper(Ch));
+    });
+    return Result;
 }
 
 struct TraceSnapshot
@@ -378,6 +390,30 @@ void ConThread::Execute()
                 }
                 break;
             }
+            case ConLineKind::Return:
+            {
+                bDidReturn = true;
+                bReturnHasValue = Line.HasReturnValue();
+                if (bReturnHasValue)
+                {
+                    const VariableRef& RetRef = Line.GetReturnValue();
+                    if (!RetRef.IsValid())
+                    {
+                        throw ConRuntimeError(Location, "RET argument is invalid");
+                    }
+                    ReturnValue = RetRef.Read();
+                }
+                else
+                {
+                    ReturnValue = 0;
+                }
+                i = Lines.size();
+                if (bTraceExecution)
+                {
+                    PrintTrace("RET", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                }
+                break;
+            }
             default:
             {
                 ++i;
@@ -422,12 +458,22 @@ void ConThread::SetVariables(const vector<ConVariableCached*>& InVariables)
 void ConThread::SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&& CachedVars,
                                 std::vector<std::unique_ptr<ConVariableAbsolute>>&& ConstVars,
                                 std::vector<std::unique_ptr<ConVariableList>>&& ListVars,
-                                std::vector<std::unique_ptr<ConBaseOp>>&& Ops)
+                                std::vector<std::unique_ptr<ConBaseOp>>&& Ops,
+                                std::unordered_map<std::string, ConVariableList*>&& ListNameMap)
 {
     OwnedVarStorage = std::move(CachedVars);
     OwnedConstStorage = std::move(ConstVars);
     OwnedListStorage = std::move(ListVars);
     OwnedOpStorage = std::move(Ops);
+    ListLookup = std::move(ListNameMap);
+    ReverseListLookup.clear();
+    for (const auto& Pair : ListLookup)
+    {
+        if (Pair.second != nullptr)
+        {
+            ReverseListLookup[Pair.second] = Pair.first;
+        }
+    }
 }
 
 void ConThread::ConstructLine(const ConLine &Line)
@@ -497,6 +543,50 @@ const ConVariableList* ConThread::GetListVar(const size_t Index) const
     return OwnedListStorage[Index].get();
 }
 
+ConVariableList* ConThread::FindListVar(const std::string& Name)
+{
+    const std::string Upper = ToUpperCopy(Name);
+    auto It = ListLookup.find(Upper);
+    if (It == ListLookup.end())
+    {
+        return nullptr;
+    }
+    return It->second;
+}
+
+const ConVariableList* ConThread::FindListVar(const std::string& Name) const
+{
+    const std::string Upper = ToUpperCopy(Name);
+    auto It = ListLookup.find(Upper);
+    if (It == ListLookup.end())
+    {
+        return nullptr;
+    }
+    return It->second;
+}
+
+std::string ConThread::GetListName(const ConVariableList* List) const
+{
+    auto It = ReverseListLookup.find(const_cast<ConVariableList*>(List));
+    if (It == ReverseListLookup.end())
+    {
+        return std::string();
+    }
+    return It->second;
+}
+
+std::vector<std::string> ConThread::GetListNames() const
+{
+    std::vector<std::string> Names;
+    Names.reserve(ListLookup.size());
+    for (const auto& Pair : ListLookup)
+    {
+        Names.push_back(Pair.first);
+    }
+    std::sort(Names.begin(), Names.end());
+    return Names;
+}
+
 void ConThread::ReportRuntimeError(const ConRuntimeError& Error)
 {
     bHadRuntimeError = true;
@@ -509,4 +599,7 @@ void ConThread::ResetRuntimeErrors()
 {
     RuntimeErrors.clear();
     bHadRuntimeError = false;
+    bDidReturn = false;
+    bReturnHasValue = false;
+    ReturnValue = 0;
 }

@@ -1,12 +1,21 @@
 #pragma once
 #include "common.h"
 
+#include <limits>
+
 enum class VariableKind
 {
     Thread,
     Cache,
     List,
     Literal
+};
+
+enum class ConListRole
+{
+    General,
+    Input,
+    Output
 };
 
 struct ConVariable
@@ -81,10 +90,22 @@ struct ConVariableList : public ConVariable
     const vector<int32>& GetValues() const;
     size_t Size() const;
 
+    void SetRole(ConListRole InRole);
+    ConListRole GetRole() const;
+    bool IsReadOnly() const;
+    bool IsOutput() const;
+    void SetExpectedSize(size_t Size);
+    size_t GetExpectedSize() const;
+    bool HasExpectedSize() const;
+    bool CanAppend() const;
+    bool TryAppend(int32 Value);
+
 private:
     vector<int32> Storage;
     mutable int32 CurrentValue = 0;
     size_t Cursor = 0;
+    ConListRole Role = ConListRole::General;
+    size_t ExpectedSize = std::numeric_limits<size_t>::max();
 };
 
 struct VariableRef

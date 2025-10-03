@@ -8,18 +8,24 @@
 
 struct PuzzleListSpec
 {
-    int Index = 0;
+    std::string Name;
     std::vector<int> Values;
+};
+
+struct PuzzleOutSpec
+{
+    std::string Name;
+    int ExpectedSize = 0;
 };
 
 struct PuzzleExpectation
 {
     std::unordered_map<std::string, int> Registers;
-    std::vector<PuzzleListSpec> Lists;
+    std::vector<PuzzleListSpec> ExpectedOut;
 
     bool HasExpectations() const
     {
-        return !Registers.empty() || !Lists.empty();
+        return !Registers.empty() || !ExpectedOut.empty();
     }
 };
 
@@ -27,7 +33,8 @@ struct PuzzleTestCase
 {
     std::string Name;
     std::unordered_map<std::string, int> InitialRegisters;
-    std::vector<PuzzleListSpec> InitialLists;
+    std::vector<PuzzleListSpec> DatInputs;
+    std::vector<PuzzleOutSpec> OutSpecs;
     PuzzleExpectation Expectation;
 };
 
