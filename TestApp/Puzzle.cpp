@@ -15,6 +15,18 @@ std::string ToUpper(const std::string& Text)
     return Result;
 }
 
+const SimpleJsonValue* FindFirstOf(const SimpleJsonValue& Object, std::initializer_list<const char*> Keys)
+{
+    for (const char* Key : Keys)
+    {
+        if (const SimpleJsonValue* Value = Object.Find(Key))
+        {
+            return Value;
+        }
+    }
+    return nullptr;
+}
+
 bool ExtractStringArray(const SimpleJsonValue& Value, std::vector<std::string>& OutStrings, std::string& OutError)
 {
     if (!Value.IsArray())
@@ -143,18 +155,6 @@ bool ExtractRegisterMap(const SimpleJsonValue& Value, std::unordered_map<std::st
         OutRegisters[ToUpper(Pair.first)] = Pair.second.AsInt();
     }
     return true;
-}
-
-const SimpleJsonValue* FindFirstOf(const SimpleJsonValue& Object, std::initializer_list<const char*> Keys)
-{
-    for (const char* Key : Keys)
-    {
-        if (const SimpleJsonValue* Value = Object.Find(Key))
-        {
-            return Value;
-        }
-    }
-    return nullptr;
 }
 }
 
