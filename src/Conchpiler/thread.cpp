@@ -8,6 +8,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -45,7 +46,8 @@ struct TraceSnapshot
 {
     TraceSnapshot() : BoundThread(nullptr) {}
 
-    void Reset(const vector<ConVariableCached*>& ThreadVariables)
+    void Reset(const vector<ConVariableCached*>& ThreadVariables,
+               const std::vector<std::pair<std::string, std::vector<int32>>>& Lists)
     {
         BoundThread = &ThreadVariables;
         Values.resize(ThreadVariables.size());
@@ -67,13 +69,50 @@ struct TraceSnapshot
                 Caches[i] = 0;
             }
         }
+
+        ListValues.clear();
+        for (const auto& Entry : Lists)
+        {
+            ListValues[Entry.first] = Entry.second;
+        }
     }
 
-    void EnsureAligned(const vector<ConVariableCached*>& ThreadVariables)
+    void EnsureAligned(const vector<ConVariableCached*>& ThreadVariables,
+                       const std::vector<std::pair<std::string, std::vector<int32>>>& Lists)
     {
         if (BoundThread != &ThreadVariables || Values.size() != ThreadVariables.size())
         {
-            Reset(ThreadVariables);
+            Reset(ThreadVariables, Lists);
+            return;
+        }
+
+        for (const auto& Entry : Lists)
+        {
+            if (ListValues.find(Entry.first) == ListValues.end())
+            {
+                ListValues[Entry.first] = Entry.second;
+            }
+        }
+
+        for (auto It = ListValues.begin(); It != ListValues.end();)
+        {
+            bool bPresent = false;
+            for (const auto& Entry : Lists)
+            {
+                if (Entry.first == It->first)
+                {
+                    bPresent = true;
+                    break;
+                }
+            }
+            if (!bPresent)
+            {
+                It = ListValues.erase(It);
+            }
+            else
+            {
+                ++It;
+            }
         }
     }
 
@@ -81,6 +120,7 @@ struct TraceSnapshot
     std::vector<int32> Values;
     std::vector<int32> Caches;
     std::vector<bool> Defined;
+    std::unordered_map<std::string, std::vector<int32>> ListValues;
 };
 
 TraceSnapshot& GetTraceSnapshot()
@@ -89,19 +129,55 @@ TraceSnapshot& GetTraceSnapshot()
     return Snapshot;
 }
 
-void ResetTraceSnapshot(const vector<ConVariableCached*>& ThreadVariables)
+std::vector<std::pair<std::string, std::vector<int32>>> CollectListStates(const ConThread& Thread)
 {
-    TraceSnapshot& Snapshot = GetTraceSnapshot();
-    Snapshot.Reset(ThreadVariables);
+    std::vector<std::pair<std::string, std::vector<int32>>> States;
+    const std::vector<std::string> Names = Thread.GetListNames();
+    States.reserve(Names.size());
+    for (const std::string& Name : Names)
+    {
+        const ConVariableList* List = Thread.FindListVar(Name);
+        if (List != nullptr)
+        {
+            const std::vector<int32>& Values = List->GetValues();
+            States.push_back(std::make_pair(Name, std::vector<int32>(Values.begin(), Values.end())));
+        }
+    }
+    return States;
 }
 
-std::string FormatRegisterState(const vector<ConVariableCached*>& ThreadVariables)
+void ResetTraceSnapshot(const ConThread& Thread, const vector<ConVariableCached*>& ThreadVariables)
 {
     TraceSnapshot& Snapshot = GetTraceSnapshot();
-    Snapshot.EnsureAligned(ThreadVariables);
+    Snapshot.Reset(ThreadVariables, CollectListStates(Thread));
+}
 
+std::string FormatListValues(const std::vector<int32>& Values)
+{
     std::ostringstream Oss;
-    bool bAnyChanges = false;
+    Oss << '[';
+    for (size_t i = 0; i < Values.size(); ++i)
+    {
+        if (i > 0)
+        {
+            Oss << ", ";
+        }
+        Oss << Values[i];
+    }
+    Oss << ']';
+    return Oss.str();
+}
+
+std::string FormatTraceState(const vector<ConVariableCached*>& ThreadVariables,
+                             const std::vector<std::pair<std::string, std::vector<int32>>>& Lists)
+{
+    TraceSnapshot& Snapshot = GetTraceSnapshot();
+    Snapshot.EnsureAligned(ThreadVariables, Lists);
+
+    std::vector<std::string> Segments;
+
+    std::ostringstream RegisterStream;
+    bool bAnyRegisterChanges = false;
     for (size_t i = 0; i < ThreadVariables.size(); ++i)
     {
         const ConVariableCached* Var = ThreadVariables[i];
@@ -127,20 +203,20 @@ std::string FormatRegisterState(const vector<ConVariableCached*>& ThreadVariable
 
         if (bChanged)
         {
-            if (bAnyChanges)
+            if (bAnyRegisterChanges)
             {
-                Oss << "  ";
+                RegisterStream << "  ";
             }
-            Oss << RegisterName(i) << '=';
+            RegisterStream << RegisterName(i) << '=';
             if (bDefined)
             {
-                Oss << Value << " (C=" << Cache << ')';
+                RegisterStream << Value << " (C=" << Cache << ')';
             }
             else
             {
-                Oss << "<undef>";
+                RegisterStream << "<undef>";
             }
-            bAnyChanges = true;
+            bAnyRegisterChanges = true;
         }
 
         Snapshot.Defined[i] = bDefined;
@@ -156,12 +232,100 @@ std::string FormatRegisterState(const vector<ConVariableCached*>& ThreadVariable
         }
     }
 
-    if (!bAnyChanges)
+    if (bAnyRegisterChanges)
+    {
+        Segments.push_back(RegisterStream.str());
+    }
+
+    std::vector<std::string> ListSegments;
+    std::vector<std::string> CurrentNames;
+    CurrentNames.reserve(Lists.size());
+    for (const auto& Entry : Lists)
+    {
+        const std::string& Name = Entry.first;
+        const std::vector<int32>& CurrentValues = Entry.second;
+        CurrentNames.push_back(Name);
+
+        auto PrevIt = Snapshot.ListValues.find(Name);
+        const bool bHadPrevious = PrevIt != Snapshot.ListValues.end();
+        const std::vector<int32>* PreviousValues = bHadPrevious ? &PrevIt->second : nullptr;
+
+        const size_t PreviousSize = bHadPrevious ? PreviousValues->size() : 0;
+        bool bListChanged = !bHadPrevious || PreviousSize != CurrentValues.size();
+        if (!bListChanged && bHadPrevious)
+        {
+            bListChanged = !std::equal(PreviousValues->begin(), PreviousValues->end(), CurrentValues.begin());
+        }
+
+        if (bListChanged)
+        {
+            std::string Description;
+            if (bHadPrevious)
+            {
+                size_t Prefix = 0;
+                const size_t MinSize = std::min(PreviousSize, CurrentValues.size());
+                while (Prefix < MinSize && (*PreviousValues)[Prefix] == CurrentValues[Prefix])
+                {
+                    ++Prefix;
+                }
+
+                if (Prefix == PreviousSize && CurrentValues.size() > PreviousSize)
+                {
+                    std::vector<int32> Appended(CurrentValues.begin() + Prefix, CurrentValues.end());
+                    Description = Name + " += " + FormatListValues(Appended);
+                }
+                else
+                {
+                    Description = Name + " = " + FormatListValues(CurrentValues);
+                }
+            }
+            else if (!CurrentValues.empty())
+            {
+                Description = Name + " = " + FormatListValues(CurrentValues);
+            }
+
+            if (!Description.empty())
+            {
+                ListSegments.push_back(Description);
+            }
+        }
+
+        Snapshot.ListValues[Name] = CurrentValues;
+    }
+
+    for (auto It = Snapshot.ListValues.begin(); It != Snapshot.ListValues.end();)
+    {
+        if (std::find(CurrentNames.begin(), CurrentNames.end(), It->first) == CurrentNames.end())
+        {
+            It = Snapshot.ListValues.erase(It);
+        }
+        else
+        {
+            ++It;
+        }
+    }
+
+    if (!ListSegments.empty())
+    {
+        Segments.insert(Segments.end(), ListSegments.begin(), ListSegments.end());
+    }
+
+    if (Segments.empty())
     {
         return std::string();
     }
 
-    return std::string("| ") + Oss.str();
+    std::ostringstream Combined;
+    Combined << "| ";
+    for (size_t i = 0; i < Segments.size(); ++i)
+    {
+        if (i > 0)
+        {
+            Combined << "  ";
+        }
+        Combined << Segments[i];
+    }
+    return Combined.str();
 }
 
 int32 ResolveLineNumber(const ConSourceLocation& Location, size_t Index)
@@ -173,7 +337,8 @@ int32 ResolveLineNumber(const ConSourceLocation& Location, size_t Index)
     return static_cast<int32>(Index + 1);
 }
 
-void PrintTrace(const char* Label,
+void PrintTrace(const ConThread& Thread,
+                const char* Label,
                 const ConSourceLocation& Location,
                 size_t Index,
                 const std::string& SourceText,
@@ -201,7 +366,8 @@ void PrintTrace(const char* Label,
 
     const std::string Prefix = PrefixStream.str();
     const size_t VisiblePrefixLength = Prefix.size();
-    const std::string RegisterState = FormatRegisterState(ThreadVariables);
+    const std::vector<std::pair<std::string, std::vector<int32>>> ListStates = CollectListStates(Thread);
+    const std::string RegisterState = FormatTraceState(ThreadVariables, ListStates);
 
     std::ostringstream Oss;
     Oss << TRACE_COLOR << Prefix;
@@ -226,7 +392,7 @@ void PrintTrace(const char* Label,
 void ConThread::Execute()
 {
     ResetRuntimeErrors();
-    ResetTraceSnapshot(ThreadVariables);
+    ResetTraceSnapshot(*this, ThreadVariables);
     size_t i = 0;
     std::vector<int32> LoopIterations(Lines.size(), 0);
     constexpr int32 LoopIterationLimit = 9999;
@@ -245,7 +411,7 @@ void ConThread::Execute()
                 ++i;
                 if (bTraceExecution)
                 {
-                    PrintTrace("OPS", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, "OPS", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -262,7 +428,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bCondition ? "IF=TRUE" : "IF=FALSE", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, bCondition ? "IF=TRUE" : "IF=FALSE", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -305,7 +471,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bRuns ? "REDO-HEAD" : "REDO-SKIP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, bRuns ? "REDO-HEAD" : "REDO-SKIP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -357,7 +523,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bLoop ? "REDO" : "REDO-EXIT", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, bLoop ? "REDO" : "REDO-EXIT", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -386,7 +552,7 @@ void ConThread::Execute()
                 }
                 if (bTraceExecution)
                 {
-                    PrintTrace(bJump ? "JUMP" : "NO-JUMP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, bJump ? "JUMP" : "NO-JUMP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -410,7 +576,7 @@ void ConThread::Execute()
                 i = Lines.size();
                 if (bTraceExecution)
                 {
-                    PrintTrace("RET", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, "RET", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
@@ -419,7 +585,7 @@ void ConThread::Execute()
                 ++i;
                 if (bTraceExecution)
                 {
-                    PrintTrace("STEP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                    PrintTrace(*this, "STEP", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
                 }
                 break;
             }
