@@ -24,6 +24,10 @@ public:
     bool HadRuntimeError() const { return bHadRuntimeError; }
     const std::vector<std::string>& GetRuntimeErrors() const { return RuntimeErrors; }
 
+    bool DidReturn() const { return bDidReturn; }
+    bool HasReturnValue() const { return bDidReturn && bReturnHasValue; }
+    int32 GetReturnValue() const { return ReturnValue; }
+
     void SetTraceEnabled(bool bEnabled);
     bool IsTraceEnabled() const { return bTraceExecution; }
 
@@ -57,4 +61,7 @@ private:
     std::vector<std::string> RuntimeErrors;
     bool bHadRuntimeError = false;
     bool bTraceExecution = true;
+    bool bDidReturn = false;
+    bool bReturnHasValue = false;
+    int32 ReturnValue = 0;
 };

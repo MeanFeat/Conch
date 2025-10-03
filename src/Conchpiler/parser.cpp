@@ -183,6 +183,29 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         return Entry;
     };
 
+    auto PopSetDestination = [&](const Token& Context) -> StackEntry
+    {
+        StackEntry Entry = PopValue(Context);
+        if (Entry.Value.IsThread())
+        {
+            return Entry;
+        }
+        if (Entry.Value.IsList())
+        {
+            ConVariableList* List = Entry.Value.GetList();
+            if (List == nullptr)
+            {
+                throw ConParseError(Entry.TokenInfo, "SET destination list is invalid");
+            }
+            if (!List->IsOutput())
+            {
+                throw ConParseError(Entry.TokenInfo, "SET destination must be a thread or OUT list variable");
+            }
+            return Entry;
+        }
+        throw ConParseError(Entry.TokenInfo, "SET destination must be a thread or OUT list variable");
+    };
+
     auto IsInlineSet = [&](int32 Index) -> bool
     {
         return Index >= 2 && Tokens.at(Index - 2).Type == TokenType::Identifier && Tokens.at(Index - 2).Lexeme == "SET";
@@ -238,7 +261,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
 
                 if (Tok.Lexeme == "SET")
                 {
-                    StackEntry DstEntry = PopThread(Tok);
+                    StackEntry DstEntry = PopSetDestination(Tok);
                     StackEntry SrcEntry = PopValue(Tok);
                     std::vector<VariableRef> Args = {DstEntry.Value, SrcEntry.Value};
                     StoreOp(std::make_unique<ConSetOp>(Args), DstEntry, Tok);
@@ -370,7 +393,8 @@ enum class ParsedLineType
     If,
     Loop,
     Redo,
-    Jump
+    Jump,
+    Return
 };
 
 struct ParsedLine
@@ -391,6 +415,8 @@ struct ParsedLine
     std::vector<ConBaseOp*> Ops;
     ConSourceLocation Location;
     std::string SourceText;
+    VariableRef ReturnValue;
+    bool bHasReturnValue = false;
 };
 
 bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThread)
@@ -549,6 +575,19 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                     ReportError(CommandToken, "JUMP requires a label target");
                 }
             }
+            else if (Command == "RET")
+            {
+                P.Type = ParsedLineType::Return;
+                if (Tokens.size() > 2)
+                {
+                    ReportError(Tokens[2], "RET accepts at most one argument");
+                }
+                if (Tokens.size() >= 2)
+                {
+                    P.ReturnValue = ResolveToken(Tokens[1]);
+                    P.bHasReturnValue = true;
+                }
+            }
             else
             {
                 P.Type = ParsedLineType::Ops;
@@ -687,6 +726,9 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             break;
         case ParsedLineType::Jump:
             Line.SetJump(P.TargetIndex, P.Cmp, P.Lhs, P.Rhs, P.Invert, P.Location);
+            break;
+        case ParsedLineType::Return:
+            Line.SetReturn(P.ReturnValue, P.bHasReturnValue, P.Location);
             break;
         }
         Line.SetSourceText(P.SourceText);

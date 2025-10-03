@@ -390,6 +390,30 @@ void ConThread::Execute()
                 }
                 break;
             }
+            case ConLineKind::Return:
+            {
+                bDidReturn = true;
+                bReturnHasValue = Line.HasReturnValue();
+                if (bReturnHasValue)
+                {
+                    const VariableRef& RetRef = Line.GetReturnValue();
+                    if (!RetRef.IsValid())
+                    {
+                        throw ConRuntimeError(Location, "RET argument is invalid");
+                    }
+                    ReturnValue = RetRef.Read();
+                }
+                else
+                {
+                    ReturnValue = 0;
+                }
+                i = Lines.size();
+                if (bTraceExecution)
+                {
+                    PrintTrace("RET", Location, LineIndex, Line.GetSourceText(), ThreadVariables);
+                }
+                break;
+            }
             default:
             {
                 ++i;
@@ -575,4 +599,7 @@ void ConThread::ResetRuntimeErrors()
 {
     RuntimeErrors.clear();
     bHadRuntimeError = false;
+    bDidReturn = false;
+    bReturnHasValue = false;
+    ReturnValue = 0;
 }

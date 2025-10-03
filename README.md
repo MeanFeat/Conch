@@ -129,6 +129,7 @@ Return and Stack:
 
 RET [VAR]
 Cycles: 1
+Halts the current thread. Provide a source to capture that value as the thread's return for host tooling; omit it to return 0.
 
 POP [ARG]
 Cycles: 1
