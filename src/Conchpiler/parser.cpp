@@ -1,6 +1,8 @@
 #include "parser.h"
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <sstream>
 #include <unordered_map>
 
@@ -81,12 +83,16 @@ VariableRef ConParser::ResolveToken(const Token& Tok)
     {
         return It->second;
     }
-    if (Lexeme.rfind("LIST", 0) == 0)
+    auto HandleIndexedList = [&](const std::string& Prefix, ConListRole Role, const char* Label)
     {
-        const std::string IndexStr = Lexeme.substr(4);
+        if (Lexeme.rfind(Prefix, 0) != 0)
+        {
+            return false;
+        }
+        const std::string IndexStr = Lexeme.substr(Prefix.size());
         if (IndexStr.empty())
         {
-            throw ConParseError(Tok, "LIST token missing index");
+            throw ConParseError(Tok, std::string(Label) + " token missing index");
         }
         int32 Index = 0;
         try
@@ -95,17 +101,29 @@ VariableRef ConParser::ResolveToken(const Token& Tok)
         }
         catch (const std::exception&)
         {
-            throw ConParseError(Tok, "Invalid LIST index");
+            throw ConParseError(Tok, "Invalid " + std::string(Label) + " index");
         }
-        while (static_cast<int32>(ListStorage.size()) <= Index)
+        if (Index < 0)
         {
-            ListStorage.emplace_back(std::make_unique<ConVariableList>());
-            const std::string Name = "LIST" + std::to_string(static_cast<int32>(ListStorage.size()) - 1);
-            VarMap[Name] = VariableRef::ListVar(ListStorage.back().get());
+            throw ConParseError(Tok, std::string(Label) + " index must be non-negative");
         }
-        VariableRef Ref = VariableRef::ListVar(ListStorage.at(Index).get());
-        VarMap[Lexeme] = Ref;
-        return Ref;
+        ListStorage.emplace_back(std::make_unique<ConVariableList>());
+        ConVariableList* List = ListStorage.back().get();
+        List->SetRole(Role);
+        VarMap[Lexeme] = VariableRef::ListVar(List);
+        return true;
+    };
+    if (HandleIndexedList("DAT", ConListRole::Input, "DAT"))
+    {
+        return VarMap[Lexeme];
+    }
+    if (HandleIndexedList("OUT", ConListRole::Output, "OUT"))
+    {
+        return VarMap[Lexeme];
+    }
+    if (HandleIndexedList("LIST", ConListRole::General, "LIST"))
+    {
+        return VarMap[Lexeme];
     }
 
     try
@@ -674,7 +692,25 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         Line.SetSourceText(P.SourceText);
         Thread.ConstructLine(Line);
     }
-    Thread.SetOwnedStorage(std::move(VarStorage), std::move(ConstStorage), std::move(ListStorage), std::move(OpStorage));
+    std::unordered_map<std::string, ConVariableList*> ListNameMap;
+    for (const auto& Pair : VarMap)
+    {
+        if (Pair.second.IsList())
+        {
+            ConVariableList* List = Pair.second.GetList();
+            if (List != nullptr)
+            {
+                std::string UpperName = Pair.first;
+                std::transform(UpperName.begin(), UpperName.end(), UpperName.begin(), [](unsigned char Ch)
+                {
+                    return static_cast<char>(std::toupper(Ch));
+                });
+                ListNameMap[UpperName] = List;
+            }
+        }
+    }
+
+    Thread.SetOwnedStorage(std::move(VarStorage), std::move(ConstStorage), std::move(ListStorage), std::move(OpStorage), std::move(ListNameMap));
     OutThread = std::move(Thread);
     return true;
 }

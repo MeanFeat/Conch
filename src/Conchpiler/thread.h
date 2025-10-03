@@ -3,6 +3,7 @@
 #include "variable.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 struct ConThread final : public ConCompilable
@@ -16,7 +17,8 @@ public:
     void SetOwnedStorage(std::vector<std::unique_ptr<ConVariableCached>>&& CachedVars,
                          std::vector<std::unique_ptr<ConVariableAbsolute>>&& ConstVars,
                          std::vector<std::unique_ptr<ConVariableList>>&& ListVars,
-                         std::vector<std::unique_ptr<ConBaseOp>>&& Ops);
+                         std::vector<std::unique_ptr<ConBaseOp>>&& Ops,
+                         std::unordered_map<std::string, ConVariableList*>&& ListNameMap);
     void ConstructLine(const ConLine& Line);
 
     bool HadRuntimeError() const { return bHadRuntimeError; }
@@ -35,6 +37,10 @@ public:
     size_t GetListVarCount() const { return OwnedListStorage.size(); }
     ConVariableList* GetListVar(size_t Index);
     const ConVariableList* GetListVar(size_t Index) const;
+    ConVariableList* FindListVar(const std::string& Name);
+    const ConVariableList* FindListVar(const std::string& Name) const;
+    std::string GetListName(const ConVariableList* List) const;
+    std::vector<std::string> GetListNames() const;
 
 private:
     void ReportRuntimeError(const ConRuntimeError& Error);
@@ -46,6 +52,8 @@ private:
     std::vector<std::unique_ptr<ConVariableAbsolute>> OwnedConstStorage;
     std::vector<std::unique_ptr<ConVariableList>> OwnedListStorage;
     std::vector<std::unique_ptr<ConBaseOp>> OwnedOpStorage;
+    std::unordered_map<std::string, ConVariableList*> ListLookup;
+    std::unordered_map<ConVariableList*, std::string> ReverseListLookup;
     std::vector<std::string> RuntimeErrors;
     bool bHadRuntimeError = false;
     bool bTraceExecution = true;

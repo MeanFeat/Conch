@@ -34,11 +34,11 @@ bool ExtractStringArray(const SimpleJsonValue& Value, std::vector<std::string>& 
     return true;
 }
 
-bool ExtractListSpecs(const SimpleJsonValue& Value, std::vector<PuzzleListSpec>& OutSpecs, std::string& OutError)
+bool ExtractListSpecs(const SimpleJsonValue& Value, std::vector<PuzzleListSpec>& OutSpecs, std::string& OutError, const std::string& ExpectedPrefix = std::string())
 {
     if (!Value.IsArray())
     {
-        OutError = "Expected array for list definitions";
+        OutError = "Expected array of list definitions";
         return false;
     }
     for (const SimpleJsonValue& Entry : Value.GetArray())
@@ -48,11 +48,11 @@ bool ExtractListSpecs(const SimpleJsonValue& Value, std::vector<PuzzleListSpec>&
             OutError = "List definition must be an object";
             return false;
         }
-        const SimpleJsonValue* IndexValue = Entry.Find("index");
+        const SimpleJsonValue* NameValue = Entry.Find("name");
         const SimpleJsonValue* ValuesValue = Entry.Find("values");
-        if (IndexValue == nullptr || !IndexValue->IsNumber())
+        if (NameValue == nullptr || !NameValue->IsString())
         {
-            OutError = "List definition missing numeric 'index'";
+            OutError = "List definition missing string 'name'";
             return false;
         }
         if (ValuesValue == nullptr || !ValuesValue->IsArray())
@@ -61,7 +61,12 @@ bool ExtractListSpecs(const SimpleJsonValue& Value, std::vector<PuzzleListSpec>&
             return false;
         }
         PuzzleListSpec Spec;
-        Spec.Index = IndexValue->AsInt();
+        Spec.Name = ToUpper(NameValue->AsString());
+        if (!ExpectedPrefix.empty() && Spec.Name.rfind(ExpectedPrefix, 0) != 0)
+        {
+            OutError = std::string("Expected list name starting with '") + ExpectedPrefix + "'";
+            return false;
+        }
         for (const SimpleJsonValue& Number : ValuesValue->GetArray())
         {
             if (!Number.IsNumber())
@@ -71,6 +76,51 @@ bool ExtractListSpecs(const SimpleJsonValue& Value, std::vector<PuzzleListSpec>&
             }
             Spec.Values.push_back(Number.AsInt());
         }
+        OutSpecs.push_back(Spec);
+    }
+    return true;
+}
+
+bool ExtractOutSpecs(const SimpleJsonValue& Value, std::vector<PuzzleOutSpec>& OutSpecs, std::string& OutError)
+{
+    if (!Value.IsArray())
+    {
+        OutError = "Expected array for OUT specifications";
+        return false;
+    }
+    for (const SimpleJsonValue& Entry : Value.GetArray())
+    {
+        if (!Entry.IsObject())
+        {
+            OutError = "OUT specification must be an object";
+            return false;
+        }
+        const SimpleJsonValue* NameValue = Entry.Find("name");
+        const SimpleJsonValue* SizeValue = FindFirstOf(Entry, {"expectedSize", "size"});
+        if (NameValue == nullptr || !NameValue->IsString())
+        {
+            OutError = "OUT specification missing string 'name'";
+            return false;
+        }
+        if (SizeValue == nullptr || !SizeValue->IsNumber())
+        {
+            OutError = "OUT specification missing numeric 'expectedSize'";
+            return false;
+        }
+        const int Size = SizeValue->AsInt();
+        if (Size < 0)
+        {
+            OutError = "OUT expected size must be non-negative";
+            return false;
+        }
+        PuzzleOutSpec Spec;
+        Spec.Name = ToUpper(NameValue->AsString());
+        if (Spec.Name.rfind("OUT", 0) != 0)
+        {
+            OutError = "OUT specification names must start with 'OUT'";
+            return false;
+        }
+        Spec.ExpectedSize = Size;
         OutSpecs.push_back(Spec);
     }
     return true;
@@ -254,9 +304,17 @@ bool LoadPuzzleFromFile(const std::string& Path, PuzzleData& OutData, std::strin
             }
         }
 
-        if (const SimpleJsonValue* Lists = TestValue.Find("lists"))
+        if (const SimpleJsonValue* DatInputs = FindFirstOf(TestValue, {"dat", "inputs"}))
         {
-            if (!ExtractListSpecs(*Lists, Test.InitialLists, OutError))
+            if (!ExtractListSpecs(*DatInputs, Test.DatInputs, OutError, "DAT"))
+            {
+                return false;
+            }
+        }
+
+        if (const SimpleJsonValue* OutSpecs = TestValue.Find("out"))
+        {
+            if (!ExtractOutSpecs(*OutSpecs, Test.OutSpecs, OutError))
             {
                 return false;
             }
@@ -270,9 +328,9 @@ bool LoadPuzzleFromFile(const std::string& Path, PuzzleData& OutData, std::strin
             }
         }
 
-        if (const SimpleJsonValue* ExpectedLists = TestValue.Find("expectedLists"))
+        if (const SimpleJsonValue* ExpectedOut = FindFirstOf(TestValue, {"expectedOut", "expectedOutputs"}))
         {
-            if (!ExtractListSpecs(*ExpectedLists, Test.Expectation.Lists, OutError))
+            if (!ExtractListSpecs(*ExpectedOut, Test.Expectation.ExpectedOut, OutError, "OUT"))
             {
                 return false;
             }

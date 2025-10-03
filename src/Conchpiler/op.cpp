@@ -377,21 +377,44 @@ void ConSetOp::Execute()
         throw ConRuntimeError(GetSourceLocation(), "SET requires a destination and a source");
     }
     VariableRef& DstRef = GetArgRef(0);
-    if (!DstRef.IsThread())
-    {
-        throw ConRuntimeError(GetSourceLocation(), "SET destination must be a thread variable");
-    }
-    ConVariableCached* Dst = DstRef.GetThread();
-    if (Dst == nullptr)
-    {
-        throw ConRuntimeError(GetSourceLocation(), "SET destination is invalid");
-    }
     const VariableRef& SrcRef = GetArgRef(1);
     if (!SrcRef.IsValid())
     {
         throw ConRuntimeError(GetSourceLocation(), "SET source argument is invalid");
     }
-    Dst->SetVal(SrcRef.Read());
+    if (DstRef.IsThread())
+    {
+        ConVariableCached* Dst = DstRef.GetThread();
+        if (Dst == nullptr)
+        {
+            throw ConRuntimeError(GetSourceLocation(), "SET destination is invalid");
+        }
+        Dst->SetVal(SrcRef.Read());
+        return;
+    }
+    if (DstRef.IsList())
+    {
+        ConVariableList* List = DstRef.GetList();
+        if (List == nullptr)
+        {
+            throw ConRuntimeError(GetSourceLocation(), "SET destination list is invalid");
+        }
+        if (!List->IsOutput())
+        {
+            throw ConRuntimeError(GetSourceLocation(), "SET can only write to OUT lists");
+        }
+        const int32 Value = SrcRef.Read();
+        if (!List->TryAppend(Value))
+        {
+            if (List->HasExpectedSize())
+            {
+                throw ConRuntimeError(GetSourceLocation(), "OUT list exceeded expected size");
+            }
+            throw ConRuntimeError(GetSourceLocation(), "OUT list cannot accept additional values");
+        }
+        return;
+    }
+    throw ConRuntimeError(GetSourceLocation(), "SET destination must be a thread or OUT list variable");
 }
 
 void ConSwpOp::Execute()
