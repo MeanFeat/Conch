@@ -37,7 +37,7 @@ Assignment and Control:
 
 SET [VAR] [VAL]
 Cycles: 1 + VarCount × (distinct thread vars touched; destination always counts, and sources count if they are thread vars)
-Sets the variable to value, shifting current value to cache.
+Sets the variable to value, shifting current value to cache. When `VAR` is an `OUTn` list the value is appended to the output buffer (respecting the puzzle's declared length).
 
 SWP [VAR]
 Cycles: 1 + VarCount (touches one thread variable and its cache)
@@ -129,6 +129,7 @@ Return and Stack:
 
 RET [VAR]
 Cycles: 1
+Halts the current thread. Provide a source to capture that value as the thread's return for host tooling; omit it to return 0.
 
 POP [ARG]
 Cycles: 1
@@ -140,7 +141,25 @@ Reads a LIST at index without advancing the iterator. Out-of-range reads return 
 
 List Variables:
 
-Use LIST0, LIST1, etc., to hold queued data. `SET LIST0 <value>` appends to the list. POP maintains a per-list cursor so repeated POPs walk forward. AT is random-access and leaves the cursor untouched.
+Puzzles expose read-only `DATn` lists (e.g., `DAT0`, `DAT1`) for input data. Use `POP DAT0` to stream values or `AT DAT0 <index>` for random access; attempts to write to a `DAT` list raise a runtime error.
+
+Results must be written to `OUTn` lists. Each puzzle declares the required length for every `OUT` variable, and `SET OUT0 <value>` appends to the next slot. Exceeding the declared length causes a runtime error so you can catch logic bugs early.
+
+The legacy `LISTn` form still behaves like general-purpose lists for advanced scenarios, but puzzle I/O is standardized around `DAT` inputs and `OUT` outputs.
+
+Sample puzzle walkthrough (starter code):
+
+```
+POP X DAT0
+SET OUT0 X
+POP X DAT0
+SET OUT0 X
+POP X DAT0
+SET OUT0 X
+RET
+```
+
+This unrolled copy satisfies the sample puzzle's `OUT0` requirement while respecting the read-only `DAT0` input. It's a great sanity check for a fresh toolchain, and it sets a clear baseline to beat once you start looping and reusing registers for cycle savings.
 
 Variable Usage Impact:
 

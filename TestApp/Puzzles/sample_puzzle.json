@@ -1,17 +1,30 @@
 {
   "title": "Sample Warmup",
-  "description": "Start with something simple: prove your toolchain works by leaving the registers untouched.",
+  "description": "Copy the incoming DAT0 list into OUT0. The starter program shows a naive unrolled copy so you can verify your toolchain before hunting for optimizations.",
   "starter": [
-    "SET X 0"
+    "POP X DAT0",
+    "SET OUT0 X",
+    "POP X DAT0",
+    "SET OUT0 X",
+    "POP X DAT0",
+    "SET OUT0 X",
+    "RET"
   ],
   "tests": [
     {
-      "name": "Baseline",
-      "registers": {"X": 0, "Y": 0, "Z": 0},
-      "expectedRegisters": {"X": 0, "Y": 0, "Z": 0}
+      "name": "Echo",
+      "dat": [
+        {"name": "DAT0", "values": [1, 2, 3]}
+      ],
+      "out": [
+        {"name": "OUT0", "expectedSize": 3}
+      ],
+      "expectedOut": [
+        {"name": "OUT0", "values": [1, 2, 3]}
+      ]
     }
   ],
   "history": [
-    {"label": "Naive", "cycles": 1}
+    {"label": "Naive (unrolled)", "cycles": 9}
   ]
 }

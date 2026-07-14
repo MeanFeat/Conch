@@ -172,6 +172,68 @@ size_t ConVariableList::Size() const
     return Storage.size();
 }
 
+void ConVariableList::SetRole(const ConListRole InRole)
+{
+    Role = InRole;
+}
+
+ConListRole ConVariableList::GetRole() const
+{
+    return Role;
+}
+
+bool ConVariableList::IsReadOnly() const
+{
+    return Role == ConListRole::Input;
+}
+
+bool ConVariableList::IsOutput() const
+{
+    return Role == ConListRole::Output;
+}
+
+void ConVariableList::SetExpectedSize(const size_t Size)
+{
+    ExpectedSize = Size;
+}
+
+size_t ConVariableList::GetExpectedSize() const
+{
+    return ExpectedSize;
+}
+
+bool ConVariableList::HasExpectedSize() const
+{
+    return ExpectedSize != std::numeric_limits<size_t>::max();
+}
+
+bool ConVariableList::CanAppend() const
+{
+    if (IsReadOnly())
+    {
+        return false;
+    }
+    if (!IsOutput())
+    {
+        return true;
+    }
+    if (!HasExpectedSize())
+    {
+        return true;
+    }
+    return Storage.size() < ExpectedSize;
+}
+
+bool ConVariableList::TryAppend(const int32 Value)
+{
+    if (!CanAppend())
+    {
+        return false;
+    }
+    Push(Value);
+    return true;
+}
+
 VariableRef::VariableRef(const VariableKind InKind, ConVariable* const InPtr, ConVariableCached* const InOwner)
     : Kind(InKind)
     , Ptr(InPtr)

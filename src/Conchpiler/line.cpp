@@ -94,6 +94,16 @@ void ConLine::UpdateCycleCount(const int32 VarCount)
         AddCycles(BaseCost + VarCount * ThreadTouches);
         break;
     }
+    case ConLineKind::Return:
+    {
+        int32 ThreadTouches = 0;
+        if (bHasReturnValue && ReturnValue.TouchesThread())
+        {
+            ++ThreadTouches;
+        }
+        AddCycles(1 + VarCount * ThreadTouches);
+        break;
+    }
     default:
         break;
     }
@@ -113,6 +123,8 @@ void ConLine::SetOps(const vector<ConBaseOp*>& InOps, ConSourceLocation InLocati
     bInfiniteLoop = false;
     Invert = false;
     Location = InLocation;
+    bHasReturnValue = false;
+    ReturnValue = VariableRef();
 }
 
 void ConLine::SetIf(const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const int32 SkipCount, const bool bInvert, const ConSourceLocation InLocation)
@@ -129,6 +141,8 @@ void ConLine::SetIf(const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, c
     Counter = VariableRef();
     bInfiniteLoop = false;
     Location = InLocation;
+    bHasReturnValue = false;
+    ReturnValue = VariableRef();
 }
 
 void ConLine::SetLoop(const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const bool bInvert, const int32 ExitIndex, const ConSourceLocation InLocation)
@@ -145,6 +159,8 @@ void ConLine::SetLoop(const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs,
     Counter = VariableRef();
     bInfiniteLoop = false;
     Location = InLocation;
+    bHasReturnValue = false;
+    ReturnValue = VariableRef();
 }
 
 void ConLine::SetRedo(const int32 TargetIndex, VariableRef CounterVar, const bool bInfinite, const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const bool bInvert, const ConSourceLocation InLocation)
@@ -161,6 +177,8 @@ void ConLine::SetRedo(const int32 TargetIndex, VariableRef CounterVar, const boo
     Skip = 0;
     LoopExitIndex = -1;
     Location = InLocation;
+    bHasReturnValue = false;
+    ReturnValue = VariableRef();
 }
 
 void ConLine::SetJump(const int32 TargetIndex, const ConConditionOp Op, VariableRef Lhs, VariableRef Rhs, const bool bInvert, const ConSourceLocation InLocation)
@@ -177,6 +195,26 @@ void ConLine::SetJump(const int32 TargetIndex, const ConConditionOp Op, Variable
     Counter = VariableRef();
     bInfiniteLoop = false;
     Location = InLocation;
+    bHasReturnValue = false;
+    ReturnValue = VariableRef();
+}
+
+void ConLine::SetReturn(VariableRef RetVal, const bool bHasValue, const ConSourceLocation InLocation)
+{
+    Ops.clear();
+    Kind = ConLineKind::Return;
+    Condition = ConConditionOp::None;
+    Left = VariableRef();
+    Right = VariableRef();
+    Skip = 0;
+    LoopExitIndex = -1;
+    TargetIndex = -1;
+    Counter = VariableRef();
+    bInfiniteLoop = false;
+    Invert = false;
+    Location = InLocation;
+    bHasReturnValue = bHasValue;
+    ReturnValue = bHasReturnValue ? RetVal : VariableRef();
 }
 
 bool ConLine::EvaluateCondition() const

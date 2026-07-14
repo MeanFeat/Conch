@@ -1,6 +1,8 @@
 #include "parser.h"
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <sstream>
 #include <unordered_map>
 
@@ -81,12 +83,16 @@ VariableRef ConParser::ResolveToken(const Token& Tok)
     {
         return It->second;
     }
-    if (Lexeme.rfind("LIST", 0) == 0)
+    auto HandleIndexedList = [&](const std::string& Prefix, ConListRole Role, const char* Label)
     {
-        const std::string IndexStr = Lexeme.substr(4);
+        if (Lexeme.rfind(Prefix, 0) != 0)
+        {
+            return false;
+        }
+        const std::string IndexStr = Lexeme.substr(Prefix.size());
         if (IndexStr.empty())
         {
-            throw ConParseError(Tok, "LIST token missing index");
+            throw ConParseError(Tok, std::string(Label) + " token missing index");
         }
         int32 Index = 0;
         try
@@ -95,17 +101,29 @@ VariableRef ConParser::ResolveToken(const Token& Tok)
         }
         catch (const std::exception&)
         {
-            throw ConParseError(Tok, "Invalid LIST index");
+            throw ConParseError(Tok, "Invalid " + std::string(Label) + " index");
         }
-        while (static_cast<int32>(ListStorage.size()) <= Index)
+        if (Index < 0)
         {
-            ListStorage.emplace_back(std::make_unique<ConVariableList>());
-            const std::string Name = "LIST" + std::to_string(static_cast<int32>(ListStorage.size()) - 1);
-            VarMap[Name] = VariableRef::ListVar(ListStorage.back().get());
+            throw ConParseError(Tok, std::string(Label) + " index must be non-negative");
         }
-        VariableRef Ref = VariableRef::ListVar(ListStorage.at(Index).get());
-        VarMap[Lexeme] = Ref;
-        return Ref;
+        ListStorage.emplace_back(std::make_unique<ConVariableList>());
+        ConVariableList* List = ListStorage.back().get();
+        List->SetRole(Role);
+        VarMap[Lexeme] = VariableRef::ListVar(List);
+        return true;
+    };
+    if (HandleIndexedList("DAT", ConListRole::Input, "DAT"))
+    {
+        return VarMap[Lexeme];
+    }
+    if (HandleIndexedList("OUT", ConListRole::Output, "OUT"))
+    {
+        return VarMap[Lexeme];
+    }
+    if (HandleIndexedList("LIST", ConListRole::General, "LIST"))
+    {
+        return VarMap[Lexeme];
     }
 
     try
@@ -165,6 +183,29 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         return Entry;
     };
 
+    auto PopSetDestination = [&](const Token& Context) -> StackEntry
+    {
+        StackEntry Entry = PopValue(Context);
+        if (Entry.Value.IsThread())
+        {
+            return Entry;
+        }
+        if (Entry.Value.IsList())
+        {
+            ConVariableList* List = Entry.Value.GetList();
+            if (List == nullptr)
+            {
+                throw ConParseError(Entry.TokenInfo, "SET destination list is invalid");
+            }
+            if (!List->IsOutput())
+            {
+                throw ConParseError(Entry.TokenInfo, "SET destination must be a thread or OUT list variable");
+            }
+            return Entry;
+        }
+        throw ConParseError(Entry.TokenInfo, "SET destination must be a thread or OUT list variable");
+    };
+
     auto IsInlineSet = [&](int32 Index) -> bool
     {
         return Index >= 2 && Tokens.at(Index - 2).Type == TokenType::Identifier && Tokens.at(Index - 2).Lexeme == "SET";
@@ -220,7 +261,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
 
                 if (Tok.Lexeme == "SET")
                 {
-                    StackEntry DstEntry = PopThread(Tok);
+                    StackEntry DstEntry = PopSetDestination(Tok);
                     StackEntry SrcEntry = PopValue(Tok);
                     std::vector<VariableRef> Args = {DstEntry.Value, SrcEntry.Value};
                     StoreOp(std::make_unique<ConSetOp>(Args), DstEntry, Tok);
@@ -352,7 +393,8 @@ enum class ParsedLineType
     If,
     Loop,
     Redo,
-    Jump
+    Jump,
+    Return
 };
 
 struct ParsedLine
@@ -373,6 +415,8 @@ struct ParsedLine
     std::vector<ConBaseOp*> Ops;
     ConSourceLocation Location;
     std::string SourceText;
+    VariableRef ReturnValue;
+    bool bHasReturnValue = false;
 };
 
 bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThread)
@@ -531,6 +575,19 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                     ReportError(CommandToken, "JUMP requires a label target");
                 }
             }
+            else if (Command == "RET")
+            {
+                P.Type = ParsedLineType::Return;
+                if (Tokens.size() > 2)
+                {
+                    ReportError(Tokens[2], "RET accepts at most one argument");
+                }
+                if (Tokens.size() >= 2)
+                {
+                    P.ReturnValue = ResolveToken(Tokens[1]);
+                    P.bHasReturnValue = true;
+                }
+            }
             else
             {
                 P.Type = ParsedLineType::Ops;
@@ -670,11 +727,32 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         case ParsedLineType::Jump:
             Line.SetJump(P.TargetIndex, P.Cmp, P.Lhs, P.Rhs, P.Invert, P.Location);
             break;
+        case ParsedLineType::Return:
+            Line.SetReturn(P.ReturnValue, P.bHasReturnValue, P.Location);
+            break;
         }
         Line.SetSourceText(P.SourceText);
         Thread.ConstructLine(Line);
     }
-    Thread.SetOwnedStorage(std::move(VarStorage), std::move(ConstStorage), std::move(ListStorage), std::move(OpStorage));
+    std::unordered_map<std::string, ConVariableList*> ListNameMap;
+    for (const auto& Pair : VarMap)
+    {
+        if (Pair.second.IsList())
+        {
+            ConVariableList* List = Pair.second.GetList();
+            if (List != nullptr)
+            {
+                std::string UpperName = Pair.first;
+                std::transform(UpperName.begin(), UpperName.end(), UpperName.begin(), [](unsigned char Ch)
+                {
+                    return static_cast<char>(std::toupper(Ch));
+                });
+                ListNameMap[UpperName] = List;
+            }
+        }
+    }
+
+    Thread.SetOwnedStorage(std::move(VarStorage), std::move(ConstStorage), std::move(ListStorage), std::move(OpStorage), std::move(ListNameMap));
     OutThread = std::move(Thread);
     return true;
 }
