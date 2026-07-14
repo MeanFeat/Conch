@@ -69,7 +69,7 @@ ADD [VAR] [VAL]
 
 SUB [VAR] [VAL]
 
-MULT [VAR] [VAL]
+MUL [VAR] [VAL]
 
 DIV [VAR] [VAL]
 
@@ -107,11 +107,11 @@ Increments and Logic:
 
 INCR [VAR]
 Cycles: 1 + VarCount
-Adds 1 to the cached variable.
+Adds 1 to the thread variable (and shifts the previous value into its cache).
 
 DECR [VAR]
 Cycles: 1 + VarCount
-Subtracts 1 from the cached variable.
+Subtracts 1 from the thread variable (and shifts the previous value into its cache).
 
 AND [VAR] [VAL]
 
@@ -123,7 +123,7 @@ NOT [VAR]
 NOT [DST] [SRC]
 
 All: Cycles = 1 + VarCount × (distinct thread vars touched by the op)
-Binary logic ops behave like ADD/SUB and can be used inline with SET. NOT may be used in place (`NOT X`) or inline (`SET X NOT Y`).
+Binary logic ops behave like ADD/SUB and can be used inline with SET. NOT may be used in place (`NOT X`) or inline (`SET X NOT Y`), which assigns `~Y` into `X`.
 
 Return and Stack:
 
@@ -131,17 +131,17 @@ RET [VAR]
 Cycles: 1
 Halts the current thread. Provide a source to capture that value as the thread's return for host tooling; omit it to return 0.
 
-POP [ARG]
-Cycles: 1
-Retrieves the next value from the LIST referenced by [ARG]. Returns 0 once the list is exhausted.
+POP [VAR] [LIST]
+Cycles: 1 + VarCount × (distinct thread vars touched by the op)
+Retrieves the next value from `[LIST]` and stores it in `[VAR]`. Returns 0 once the list is exhausted.
 
-AT [IDX]
-Cycles: 1
-Reads a LIST at index without advancing the iterator. Out-of-range reads return 0.
+AT [VAR] [LIST] [IDX]
+Cycles: 1 + VarCount × (distinct thread vars touched by the op)
+Reads `[LIST]` at `[IDX]` without advancing the iterator and stores the value in `[VAR]`. Out-of-range reads return 0.
 
 List Variables:
 
-Puzzles expose read-only `DATn` lists (e.g., `DAT0`, `DAT1`) for input data. Use `POP DAT0` to stream values or `AT DAT0 <index>` for random access; attempts to write to a `DAT` list raise a runtime error.
+Puzzles expose read-only `DATn` lists (e.g., `DAT0`, `DAT1`) for input data. Use `POP X DAT0` to stream values or `AT X DAT0 <index>` for random access; attempts to write to a `DAT` list raise a runtime error.
 
 Results must be written to `OUTn` lists. Each puzzle declares the required length for every `OUT` variable, and `SET OUT0 <value>` appends to the next slot. Exceeding the declared length causes a runtime error so you can catch logic bugs early.
 
