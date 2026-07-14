@@ -123,7 +123,7 @@ NOT [VAR]
 NOT [DST] [SRC]
 
 All: Cycles = 1 + VarCount × (distinct thread vars touched by the op)
-Binary logic ops behave like ADD/SUB and can be used inline with SET. NOT may be used in place (`NOT X`) or inline (`SET X NOT Y`), which assigns `~Y` into `X`.
+Binary logic ops behave like ADD/SUB and can be used inline with SET. NOT may be used in place (`NOT X`) or inline (`SET X NOT Y`), which assigns the bitwise complement of `Y` into `X`.
 
 Return and Stack:
 
