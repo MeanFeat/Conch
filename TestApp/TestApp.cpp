@@ -869,6 +869,9 @@ struct EditorState
     std::string DeletedLine;
     int DeletedLineRow = -1;
 
+    // Set to true to exit the editor loop
+    bool bQuitRequested = false;
+
     void SetStatus(const std::string& Msg)
     {
         StatusMsg = Msg;
@@ -1229,13 +1232,7 @@ bool HandleEditorKey(EditorState& E, const KeyInput& Ki, const PuzzleData& Puzzl
                 if (bConfirmed && !Answer.empty() &&
                     std::tolower(static_cast<unsigned char>(Answer[0])) == 'y')
                 {
-                    E.bModified = false; // signal to exit loop
-                    // We repurpose bModified=false+PromptResult by setting Lines empty
-                    // Actually use a dedicated flag:
-                    E.SetStatus("Quitting...");
-                    // We'll check via a sentinel: set CursorRow to a magic value
-                    // Instead, let's use OverlayKind as a quit sentinel:
-                    E.OverlayType = static_cast<OverlayKind>(-1); // exit sentinel
+                    E.bQuitRequested = true;
                 }
                 else
                 {
@@ -1245,7 +1242,7 @@ bool HandleEditorKey(EditorState& E, const KeyInput& Ki, const PuzzleData& Puzzl
         }
         else
         {
-            E.OverlayType = static_cast<OverlayKind>(-1); // exit sentinel
+            E.bQuitRequested = true;
         }
         return true;
 
@@ -1555,8 +1552,7 @@ void RunEditor(EditorState& E, const PuzzleData& Puzzle)
         const KeyInput Ki = ReadKey();
         if (!HandleEditorKey(E, Ki, Puzzle)) break;
 
-        // Check for quit sentinel
-        if (static_cast<int>(E.OverlayType) == -1) break;
+        if (E.bQuitRequested) break;
     }
 
     // Restore terminal
