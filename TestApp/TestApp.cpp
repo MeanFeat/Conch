@@ -939,7 +939,7 @@ void DrawEditorScreen(EditorState& E)
     // ── Title bar (row 1) ─────────────────────────────────────
     {
         std::string Title = " Conch IDE";
-        if (!E.PuzzleTitle.empty()) Title += " \xe2\x80\x94 " + E.PuzzleTitle;
+        if (!E.PuzzleTitle.empty()) Title += " - " + E.PuzzleTitle;
         if (!E.Filename.empty())    Title += "  [" + E.Filename + "]";
         if (E.bModified)            Title += "  *Modified*";
         if (E.bDebugTrace)          Title += "  [TRACE]";
