@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-enum class TokenType
+enum class ConTokenType
 {
     Identifier,
     Number,
@@ -15,7 +15,7 @@ enum class TokenType
 
 struct Token
 {
-    TokenType Type = TokenType::Identifier;
+    ConTokenType Kind = ConTokenType::Identifier;
     std::string Lexeme;
     int32 Literal = 0;
     bool bHasLiteral = false;
@@ -44,4 +44,3 @@ private:
     std::vector<std::string> Lines;
     std::vector<std::string> Errors;
 };
-

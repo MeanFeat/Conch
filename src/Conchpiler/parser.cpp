@@ -67,7 +67,7 @@ void ConParser::ReportError(const ConParseError& Error)
 
 VariableRef ConParser::ResolveToken(const Token& Tok)
 {
-    if (Tok.Type == TokenType::Number)
+    if (Tok.Kind == ConTokenType::Number)
     {
         if (!Tok.bHasLiteral)
         {
@@ -208,7 +208,7 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
 
     auto IsInlineSet = [&](int32 Index) -> bool
     {
-        return Index >= 2 && Tokens.at(Index - 2).Type == TokenType::Identifier && Tokens.at(Index - 2).Lexeme == "SET";
+        return Index >= 2 && Tokens.at(Index - 2).Kind == ConTokenType::Identifier && Tokens.at(Index - 2).Lexeme == "SET";
     };
 
     auto ResolveInlineDestination = [&](int32 Index) -> StackEntry
@@ -250,12 +250,12 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
         for (int32 i = static_cast<int32>(Tokens.size()) - 1; i >= 0; --i)
         {
             const Token& Tok = Tokens.at(i);
-            if (Tok.Type == TokenType::Colon)
+            if (Tok.Kind == ConTokenType::Colon)
             {
                 continue;
             }
 
-            if (Tok.Type == TokenType::Identifier)
+            if (Tok.Kind == ConTokenType::Identifier)
             {
                 auto BinaryIt = BinaryOpMap.find(Tok.Lexeme);
 
@@ -401,7 +401,7 @@ struct ParsedLine
 {
     int32 Indent = 0;
     std::string Label;
-    ParsedLineType Type = ParsedLineType::Ops;
+    ParsedLineType Kind = ParsedLineType::Ops;
     ConConditionOp Cmp = ConConditionOp::None;
     VariableRef Lhs;
     VariableRef Rhs;
@@ -455,7 +455,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         const ParsedLine& LoopLine = Parsed[Entry.LoopIndex];
         ParsedLine RedoLine;
         RedoLine.Indent = LoopLine.Indent;
-        RedoLine.Type = ParsedLineType::Redo;
+        RedoLine.Kind = ParsedLineType::Redo;
         RedoLine.Cmp = LoopLine.Cmp;
         RedoLine.Lhs = LoopLine.Lhs;
         RedoLine.Rhs = LoopLine.Rhs;
@@ -493,7 +493,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
 
         std::vector<Token> Tokens = LineTokens.Tokens;
 
-        if (Tokens.size() >= 2 && Tokens[0].Type == TokenType::Identifier && Tokens[1].Type == TokenType::Colon)
+        if (Tokens.size() >= 2 && Tokens[0].Kind == ConTokenType::Identifier && Tokens[1].Kind == ConTokenType::Colon)
         {
             P.Label = Tokens[0].Lexeme;
             Tokens.erase(Tokens.begin(), Tokens.begin() + 2);
@@ -528,7 +528,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                     Parsed.push_back(std::move(P));
                     continue;
                 }
-                P.Type = ParsedLineType::If;
+                P.Kind = ParsedLineType::If;
                 P.Invert = Command == "IFN";
                 P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
                 P.Lhs = ResolveToken(Tokens[2]);
@@ -536,11 +536,11 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             else if (Command == "REDO")
             {
-                if (Tokens.size() >= 5 && Tokens[1].Type == TokenType::Identifier &&
+                if (Tokens.size() >= 5 && Tokens[1].Kind == ConTokenType::Identifier &&
                     (Tokens[1].Lexeme == "IF" || Tokens[1].Lexeme == "IFN") &&
-                    Tokens[3].Type == TokenType::Identifier && IsComparisonToken(Tokens[3].Lexeme))
+                    Tokens[3].Kind == ConTokenType::Identifier && IsComparisonToken(Tokens[3].Lexeme))
                 {
-                    P.Type = ParsedLineType::Loop;
+                    P.Kind = ParsedLineType::Loop;
                     P.Invert = Tokens[1].Lexeme == "IFN";
                     P.Cmp = ParseComparisonToken(Tokens[3].Lexeme);
                     P.Lhs = ResolveToken(Tokens[2]);
@@ -557,9 +557,9 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             else if (Command == "JUMP")
             {
-                P.Type = ParsedLineType::Jump;
+                P.Kind = ParsedLineType::Jump;
                 size_t LabelIndex = 1;
-                if (Tokens.size() >= 5 && Tokens[1].Type == TokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
+                if (Tokens.size() >= 5 && Tokens[1].Kind == ConTokenType::Identifier && IsComparisonToken(Tokens[1].Lexeme))
                 {
                     P.Cmp = ParseComparisonToken(Tokens[1].Lexeme);
                     P.Lhs = ResolveToken(Tokens[2]);
@@ -577,7 +577,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             else if (Command == "RET")
             {
-                P.Type = ParsedLineType::Return;
+                P.Kind = ParsedLineType::Return;
                 if (Tokens.size() > 2)
                 {
                     ReportError(Tokens[2], "RET accepts at most one argument");
@@ -590,7 +590,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             else
             {
-                P.Type = ParsedLineType::Ops;
+                P.Kind = ParsedLineType::Ops;
                 P.Ops = ParseTokens(Tokens);
             }
         }
@@ -601,7 +601,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
 
         Parsed.push_back(std::move(P));
 
-        if (!Parsed.empty() && Parsed.back().Type == ParsedLineType::Loop)
+        if (!Parsed.empty() && Parsed.back().Kind == ParsedLineType::Loop)
         {
             LoopEntry Entry;
             Entry.Indent = Parsed.back().Indent;
@@ -626,7 +626,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             IfStack.pop_back();
             Parsed[Idx].SkipCount = i - Idx - 1;
         }
-        if (Parsed[i].Type == ParsedLineType::If)
+        if (Parsed[i].Kind == ParsedLineType::If)
         {
             IfStack.push_back(i);
         }
@@ -640,12 +640,12 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
 
     for (int32 i = 0; i < static_cast<int32>(Parsed.size()); ++i)
     {
-        if (Parsed[i].Type == ParsedLineType::Redo)
+        if (Parsed[i].Kind == ParsedLineType::Redo)
         {
             int32 Match = -1;
             for (int32 j = i - 1; j >= 0; --j)
             {
-                if (Parsed[j].Type == ParsedLineType::Loop && Parsed[j].Indent <= Parsed[i].Indent)
+                if (Parsed[j].Kind == ParsedLineType::Loop && Parsed[j].Indent <= Parsed[i].Indent)
                 {
                     Match = j;
                     break;
@@ -665,7 +665,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
 
     for (ParsedLine& P : Parsed)
     {
-        if (P.Type == ParsedLineType::Loop && P.LoopExitIndex < 0)
+        if (P.Kind == ParsedLineType::Loop && P.LoopExitIndex < 0)
         {
             P.LoopExitIndex = static_cast<int32>(Parsed.size());
         }
@@ -682,7 +682,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
 
     for (ParsedLine& P : Parsed)
     {
-        if (P.Type == ParsedLineType::Jump)
+        if (P.Kind == ParsedLineType::Jump)
         {
             auto ItLabel = LabelMap.find(P.TargetLabel);
             if (ItLabel == LabelMap.end())
@@ -710,7 +710,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
     for (const ParsedLine& P : Parsed)
     {
         ConLine Line;
-        switch (P.Type)
+        switch (P.Kind)
         {
         case ParsedLineType::Ops:
             Line.SetOps(P.Ops, P.Location);
@@ -756,4 +756,3 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
     OutThread = std::move(Thread);
     return true;
 }
-

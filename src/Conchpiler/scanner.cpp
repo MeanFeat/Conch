@@ -64,7 +64,7 @@ void Scanner::ScanLine(const std::string& LineText, const int32 LineNumber, Toke
                 ++Position;
             }
             Token Tok;
-            Tok.Type = TokenType::Identifier;
+            Tok.Kind = ConTokenType::Identifier;
             Tok.Lexeme = LineText.substr(Start, Position - Start);
             Tok.Line = LineNumber;
             Tok.Column = Column;
@@ -90,7 +90,7 @@ void Scanner::ScanLine(const std::string& LineText, const int32 LineNumber, Toke
             }
             const std::string Lexeme = LineText.substr(Start, Position - Start);
             Token Tok;
-            Tok.Type = TokenType::Number;
+            Tok.Kind = ConTokenType::Number;
             Tok.Lexeme = Lexeme;
             Tok.Line = LineNumber;
             Tok.Column = Column;
@@ -112,7 +112,7 @@ void Scanner::ScanLine(const std::string& LineText, const int32 LineNumber, Toke
         if (Current == ':')
         {
             Token Tok;
-            Tok.Type = TokenType::Colon;
+            Tok.Kind = ConTokenType::Colon;
             Tok.Lexeme = ":";
             Tok.Line = LineNumber;
             Tok.Column = Column;
@@ -132,4 +132,3 @@ void Scanner::AddError(const int32 LineNumber, const int32 ColumnNumber, const s
     Stream << "[line " << LineNumber << ", col " << ColumnNumber << "] " << Message;
     Errors.push_back(Stream.str());
 }
-

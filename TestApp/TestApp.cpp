@@ -1,8 +1,5 @@
 #include "Puzzle.h"
 
-#include "../src/Conchpiler/parser.h"
-#include "../src/Conchpiler/thread.h"
-
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -21,14 +18,23 @@
 // Platform-specific terminal support
 #ifdef _WIN32
 #  define PLATFORM_WINDOWS 1
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
 #  include <conio.h>
 #  include <windows.h>
+#  undef min
+#  undef max
+#  undef Type
+#  undef constant
 #else
 #  define PLATFORM_WINDOWS 0
 #  include <sys/ioctl.h>
 #  include <termios.h>
 #  include <unistd.h>
 #endif
+
+#include "../src/Conchpiler/parser.h"
+#include "../src/Conchpiler/thread.h"
 
 namespace
 {
@@ -43,7 +49,7 @@ const char* const COLOR_SUCCESS = "\033[1;32m";
 const char* const COLOR_ERROR   = "\033[1;31m";
 const char* const COLOR_INFO    = "\033[0;36m";
 const char* const COLOR_GRAY    = "\033[0;37m";
-const char* const COLOR_MENU    = "\033[1;33m";
+const char* const COLOR_OPTION  = "\033[1;33m";
 const char* const ANSI_HIDE_CURSOR = "\033[?25l";
 const char* const ANSI_SHOW_CURSOR = "\033[?25h";
 const char* const ANSI_CLEAR_SCREEN = "\033[2J";
@@ -155,12 +161,12 @@ std::filesystem::path SelectPuzzleInteractively(const std::filesystem::path& Puz
     std::cout << COLOR_GRAY << std::string(60, '-') << COLOR_RESET << "\n";
     for (size_t i = 0; i < Files.size(); ++i)
     {
-        std::cout << COLOR_MENU << "  " << std::setw(2) << (i + 1) << COLOR_RESET
+        std::cout << COLOR_OPTION << "  " << std::setw(2) << (i + 1) << COLOR_RESET
                   << ". " << ReadPuzzleTitle(Files[i])
                   << COLOR_GRAY << "  (" << Files[i].filename().string() << ")"
                   << COLOR_RESET << "\n";
     }
-    std::cout << COLOR_MENU << "   0" << COLOR_RESET << ". Cancel\n";
+    std::cout << COLOR_OPTION << "   0" << COLOR_RESET << ". Cancel\n";
     std::cout << COLOR_GRAY << std::string(60, '-') << COLOR_RESET << "\n";
 
     while (true)
