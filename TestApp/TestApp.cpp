@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -21,6 +22,12 @@ const char* const COLOR_MENU = "\033[1;33m";
 const char* const COLOR_SUCCESS = "\033[1;32m";
 const char* const COLOR_ERROR = "\033[1;31m";
 const char* const COLOR_INFO = "\033[0;36m";
+const char* const COLOR_GRAY = "\033[0;37m";
+
+void PrintSeparator()
+{
+    std::cout << COLOR_GRAY << std::string(60, '-') << COLOR_RESET << "\n";
+}
 
 bool EqualsIgnoreCase(const std::string& A, const std::string& B)
 {
@@ -96,8 +103,128 @@ std::vector<std::pair<std::string, int>> SortRegisterMap(const std::unordered_ma
     return Sorted;
 }
 
+// Returns all .json files found in the given directory, sorted by name.
+std::vector<std::filesystem::path> FindPuzzleFiles(const std::filesystem::path& Dir)
+{
+    std::vector<std::filesystem::path> Files;
+    std::error_code EC;
+    const std::filesystem::directory_iterator It(Dir, EC);
+    if (EC)
+    {
+        return Files;
+    }
+    for (const auto& Entry : It)
+    {
+        std::error_code EntryEC;
+        if (Entry.is_regular_file(EntryEC) && !EntryEC && Entry.path().extension() == ".json")
+        {
+            Files.push_back(Entry.path());
+        }
+    }
+    std::sort(Files.begin(), Files.end());
+    return Files;
+}
+
+// Tries to find the Puzzles directory by looking next to the executable and in the current directory.
+std::filesystem::path FindPuzzlesDirectory(const std::filesystem::path& ExecutablePath)
+{
+    const std::vector<std::filesystem::path> Candidates = {
+        ExecutablePath.parent_path() / "Puzzles",
+        std::filesystem::current_path() / "Puzzles",
+        std::filesystem::current_path() / "TestApp" / "Puzzles",
+    };
+    for (const auto& Candidate : Candidates)
+    {
+        std::error_code EC;
+        if (std::filesystem::is_directory(Candidate, EC))
+        {
+            return Candidate;
+        }
+    }
+    return std::filesystem::path();
+}
+
+// Reads just the "title" field from a puzzle JSON file without fully parsing it.
+// Falls back to the filename stem on any failure.
+std::string ReadPuzzleTitle(const std::filesystem::path& FilePath)
+{
+    std::ifstream Input(FilePath);
+    if (!Input)
+    {
+        return FilePath.stem().string();
+    }
+    std::ostringstream Buffer;
+    Buffer << Input.rdbuf();
+    const std::string Content = Buffer.str();
+
+    SimpleJsonValue Root;
+    std::string Err;
+    if (!SimpleJsonValue::Parse(Content, Root, Err) || !Root.IsObject())
+    {
+        return FilePath.stem().string();
+    }
+    const SimpleJsonValue* Title = Root.Find("title");
+    if (Title != nullptr && Title->IsString())
+    {
+        return Title->AsString();
+    }
+    return FilePath.stem().string();
+}
+
+// Shows an interactive puzzle picker and returns the chosen file path.
+// Returns an empty path if the user cancels or no puzzles are found.
+std::filesystem::path SelectPuzzleInteractively(const std::filesystem::path& PuzzlesDir)
+{
+    const std::vector<std::filesystem::path> Files = FindPuzzleFiles(PuzzlesDir);
+    if (Files.empty())
+    {
+        std::cout << COLOR_ERROR << "No puzzle files found in: " << PuzzlesDir.string() << COLOR_RESET << "\n";
+        return std::filesystem::path();
+    }
+
+    PrintSeparator();
+    std::cout << COLOR_HEADING << "Available Puzzles" << COLOR_RESET << "\n";
+    PrintSeparator();
+    for (size_t i = 0; i < Files.size(); ++i)
+    {
+        const std::string Title = ReadPuzzleTitle(Files[i]);
+        std::cout << COLOR_MENU << "  " << std::setw(2) << (i + 1) << COLOR_RESET
+                  << ". " << Title
+                  << COLOR_GRAY << "  (" << Files[i].filename().string() << ")" << COLOR_RESET << "\n";
+    }
+    std::cout << COLOR_MENU << "   0" << COLOR_RESET << ". Cancel\n";
+    PrintSeparator();
+
+    while (true)
+    {
+        std::cout << "Select a puzzle: ";
+        std::string Line;
+        std::getline(std::cin, Line);
+        if (!std::cin)
+        {
+            return std::filesystem::path();
+        }
+        std::stringstream Stream(Line);
+        int Choice = -1;
+        if (Stream >> Choice)
+        {
+            if (Choice == 0)
+            {
+                return std::filesystem::path();
+            }
+            if (Choice > 0 && static_cast<size_t>(Choice) <= Files.size())
+            {
+                return Files[static_cast<size_t>(Choice) - 1];
+            }
+        }
+        std::cout << COLOR_ERROR << "Please enter a number between 0 and " << Files.size() << "." << COLOR_RESET << "\n";
+    }
+}
+
+
 void ShowPuzzleOverview(const PuzzleData& Puzzle)
 {
+    PrintSeparator();
     std::cout << COLOR_HEADING << "=== " << Puzzle.Title << " ===" << COLOR_RESET << "\n";
     if (!Puzzle.Description.empty())
     {
@@ -157,6 +284,7 @@ void ShowPuzzleOverview(const PuzzleData& Puzzle)
             std::cout << "  " << std::setw(4) << Entry.Cycles << " cycles - " << Entry.Label << std::endl;
         }
     }
+    PrintSeparator();
     std::cout << std::endl;
 }
 
@@ -504,6 +632,7 @@ void RunTests(const PuzzleData& Puzzle, const std::vector<std::string>& Code, bo
 
 void PrintMenu(bool bDebugTraceEnabled)
 {
+    PrintSeparator();
     std::cout << COLOR_MENU << "Menu:\n"
               << "  1) Show puzzle overview\n"
               << "  2) Show current code\n"
@@ -534,18 +663,37 @@ int ReadMenuChoice()
 
 int main(int Argc, char* Argv[])
 {
-    if (Argc < 2)
+    const std::filesystem::path ExecutablePath = (Argc > 0) ? std::filesystem::path(Argv[0]) : std::filesystem::path();
+
+    std::string PuzzlePath;
+    if (Argc >= 2)
     {
-        std::cout << "Usage: conch_ide <puzzle.json> [optional_code_file]\n";
-        return 1;
+        PuzzlePath = Argv[1];
+    }
+    else
+    {
+        // No puzzle specified — let the user pick from the Puzzles folder.
+        const std::filesystem::path PuzzlesDir = FindPuzzlesDirectory(ExecutablePath);
+        if (PuzzlesDir.empty())
+        {
+            std::cout << COLOR_ERROR << "Could not find the Puzzles directory." << COLOR_RESET << "\n"
+                      << "Usage: conch_ide <puzzle.json> [optional_code_file]\n";
+            return 1;
+        }
+        const std::filesystem::path Chosen = SelectPuzzleInteractively(PuzzlesDir);
+        if (Chosen.empty())
+        {
+            std::cout << "No puzzle selected. Exiting.\n";
+            return 0;
+        }
+        PuzzlePath = Chosen.string();
     }
 
-    const std::string PuzzlePath = Argv[1];
     PuzzleData Puzzle;
     std::string Error;
     if (!LoadPuzzleFromFile(PuzzlePath, Puzzle, Error))
     {
-        std::cout << "Failed to load puzzle: " << Error << std::endl;
+        std::cout << COLOR_ERROR << "Failed to load puzzle: " << Error << COLOR_RESET << std::endl;
         return 1;
     }
 
@@ -554,7 +702,7 @@ int main(int Argc, char* Argv[])
     {
         if (!LoadCodeFromFile(Argv[2], Code, Error))
         {
-            std::cout << "Warning: " << Error << "\nUsing starter code instead." << std::endl;
+            std::cout << COLOR_ERROR << "Warning: " << Error << "\nUsing starter code instead." << COLOR_RESET << std::endl;
             Code = Puzzle.StarterCode;
         }
     }
@@ -586,11 +734,11 @@ int main(int Argc, char* Argv[])
             const std::string Path = PromptLine("File to load: ");
             if (!LoadCodeFromFile(Path, Code, Error))
             {
-                std::cout << Error << std::endl;
+                std::cout << COLOR_ERROR << Error << COLOR_RESET << std::endl;
             }
             else
             {
-                std::cout << "Code loaded from " << Path << "\n";
+                std::cout << COLOR_SUCCESS << "Code loaded from " << Path << COLOR_RESET << "\n";
             }
             break;
         }
@@ -599,11 +747,11 @@ int main(int Argc, char* Argv[])
             const std::string Path = PromptLine("File to save to: ");
             if (!SaveCodeToFile(Path, Code, Error))
             {
-                std::cout << Error << std::endl;
+                std::cout << COLOR_ERROR << Error << COLOR_RESET << std::endl;
             }
             else
             {
-                std::cout << "Saved code to " << Path << "\n";
+                std::cout << COLOR_SUCCESS << "Saved code to " << Path << COLOR_RESET << "\n";
             }
             break;
         }
@@ -618,7 +766,7 @@ int main(int Argc, char* Argv[])
             bRunning = false;
             break;
         default:
-            std::cout << COLOR_ERROR << "Unknown option." << COLOR_RESET << std::endl;
+            std::cout << COLOR_ERROR << "Unknown option. Please choose a number from the menu." << COLOR_RESET << std::endl;
             break;
         }
     }
