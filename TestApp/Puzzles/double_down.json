@@ -1,0 +1,35 @@
+{
+  "title": "Double Down",
+  "description": "Multiply each value in DAT0 by 2 and write the results to OUT0. All input values are positive integers.",
+  "naiveSolution": [
+    "POP X DAT0",
+    "REDO IF X GTR 0",
+    "  MUL X 2",
+    "  SET OUT0 X",
+    "  POP X DAT0",
+    "RET"
+  ],
+  "tests": [
+    {
+      "name": "Double three values",
+      "dat": [{"name": "DAT0", "values": [1, 2, 3]}],
+      "out": [{"name": "OUT0", "expectedSize": 3}],
+      "expectedOut": [{"name": "OUT0", "values": [2, 4, 6]}]
+    },
+    {
+      "name": "Double larger values",
+      "dat": [{"name": "DAT0", "values": [5, 10, 15]}],
+      "out": [{"name": "OUT0", "expectedSize": 3}],
+      "expectedOut": [{"name": "OUT0", "values": [10, 20, 30]}]
+    },
+    {
+      "name": "Single value",
+      "dat": [{"name": "DAT0", "values": [7]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [14]}]
+    }
+  ],
+  "history": [
+    {"label": "Naive (loop)", "cycles": 24}
+  ]
+}

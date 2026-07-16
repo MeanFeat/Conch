@@ -1,0 +1,35 @@
+{
+  "title": "Sum It Up",
+  "description": "Compute the sum of all values in DAT0 and write the result to OUT0. All input values are positive integers.",
+  "naiveSolution": [
+    "POP Y DAT0",
+    "REDO IF Y GTR 0",
+    "  ADD X Y",
+    "  POP Y DAT0",
+    "SET OUT0 X",
+    "RET"
+  ],
+  "tests": [
+    {
+      "name": "Small sum",
+      "dat": [{"name": "DAT0", "values": [1, 2, 3]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [6]}]
+    },
+    {
+      "name": "Larger values",
+      "dat": [{"name": "DAT0", "values": [10, 20, 30, 40]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [100]}]
+    },
+    {
+      "name": "Single value",
+      "dat": [{"name": "DAT0", "values": [42]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [42]}]
+    }
+  ],
+  "history": [
+    {"label": "Naive (loop)", "cycles": 27}
+  ]
+}

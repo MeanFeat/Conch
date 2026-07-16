@@ -1,0 +1,39 @@
+{
+  "title": "Reverse It",
+  "description": "Reverse the order of the values in DAT0 and write them to OUT0. All input values are positive integers.",
+  "naiveSolution": [
+    "POP X DAT0",
+    "REDO IF X GTR 0",
+    "  INCR Y",
+    "  POP X DAT0",
+    "DECR Y",
+    "REDO IFN Y LSR 0",
+    "  AT X DAT0 Y",
+    "  SET OUT0 X",
+    "  DECR Y",
+    "RET"
+  ],
+  "tests": [
+    {
+      "name": "Reverse three values",
+      "dat": [{"name": "DAT0", "values": [1, 2, 3]}],
+      "out": [{"name": "OUT0", "expectedSize": 3}],
+      "expectedOut": [{"name": "OUT0", "values": [3, 2, 1]}]
+    },
+    {
+      "name": "Reverse five values",
+      "dat": [{"name": "DAT0", "values": [5, 4, 3, 2, 1]}],
+      "out": [{"name": "OUT0", "expectedSize": 5}],
+      "expectedOut": [{"name": "OUT0", "values": [1, 2, 3, 4, 5]}]
+    },
+    {
+      "name": "Single value",
+      "dat": [{"name": "DAT0", "values": [42]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [42]}]
+    }
+  ],
+  "history": [
+    {"label": "Naive (two-pass)", "cycles": 46}
+  ]
+}
