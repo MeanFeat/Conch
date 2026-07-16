@@ -1,0 +1,37 @@
+{
+  "title": "Find the Max",
+  "description": "Find the largest value in DAT0 and write it to OUT0. All input values are positive integers.",
+  "naiveSolution": [
+    "POP X DAT0",
+    "POP Y DAT0",
+    "REDO IF Y GTR 0",
+    "  IF GTR Y X",
+    "    SET X Y",
+    "  POP Y DAT0",
+    "SET OUT0 X",
+    "RET"
+  ],
+  "tests": [
+    {
+      "name": "Mixed values",
+      "dat": [{"name": "DAT0", "values": [3, 1, 4, 1, 5, 9, 2, 6]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [9]}]
+    },
+    {
+      "name": "Max at start",
+      "dat": [{"name": "DAT0", "values": [10, 3, 7, 2]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [10]}]
+    },
+    {
+      "name": "Single value",
+      "dat": [{"name": "DAT0", "values": [8]}],
+      "out": [{"name": "OUT0", "expectedSize": 1}],
+      "expectedOut": [{"name": "OUT0", "values": [8]}]
+    }
+  ],
+  "history": [
+    {"label": "Naive (loop)", "cycles": 38}
+  ]
+}
