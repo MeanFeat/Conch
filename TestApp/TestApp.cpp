@@ -135,9 +135,10 @@ std::filesystem::path FindPuzzlesDirectory(const std::filesystem::path& Executab
 
     for (const auto& Root : SearchRoots)
     {
-        for (std::filesystem::path Probe = Root; !Probe.empty(); Probe = Probe.parent_path())
+        for (std::filesystem::path Probe = Root;
+             !Probe.empty() && !Probe.relative_path().empty();
+             Probe = Probe.parent_path())
         {
-            if (Probe == Probe.parent_path()) break;
             AddCandidate(Probe / "Puzzles");
             AddCandidate(Probe / "TestApp" / "Puzzles");
         }
