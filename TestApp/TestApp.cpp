@@ -118,11 +118,22 @@ std::vector<std::filesystem::path> FindPuzzleFiles(const std::filesystem::path& 
 
 std::filesystem::path FindPuzzlesDirectory(const std::filesystem::path& ExecutablePath)
 {
-    const std::vector<std::filesystem::path> Candidates = {
-        ExecutablePath.parent_path() / "Puzzles",
-        std::filesystem::current_path() / "Puzzles",
-        std::filesystem::current_path() / "TestApp" / "Puzzles",
+    std::vector<std::filesystem::path> Candidates;
+    const std::vector<std::filesystem::path> SearchRoots = {
+        ExecutablePath.parent_path(),
+        std::filesystem::current_path(),
     };
+
+    for (const auto& Root : SearchRoots)
+    {
+        for (std::filesystem::path Probe = Root; !Probe.empty(); Probe = Probe.parent_path())
+        {
+            Candidates.push_back(Probe / "Puzzles");
+            Candidates.push_back(Probe / "TestApp" / "Puzzles");
+            if (Probe == Probe.parent_path()) break;
+        }
+    }
+
     for (const auto& C : Candidates)
     {
         std::error_code EC;
