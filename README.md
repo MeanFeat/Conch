@@ -46,13 +46,15 @@ Inline example: SWP SET X 1.
 
 Flow Control:
 
-IF [CONDITION]
+IF [LHS] [COMPARISON] [RHS]
+IF [VALUE]
 Cycles: 1 + cost of condition
-Executes block if condition is true.
+Executes block if condition is true. Single-value form is true for any non-zero value and false for `0`.
 
-IFN [CONDITION]
+IFN [LHS] [COMPARISON] [RHS]
+IFN [VALUE]
 Cycles: 1 + cost of condition
-Executes block if condition is false.
+Executes block if condition is false. Single-value form inverts the non-zero check.
 
 REDO IF [LHS] [COMPARISON] [RHS]
 Cycles: 0 + cost of condition if one is supplied

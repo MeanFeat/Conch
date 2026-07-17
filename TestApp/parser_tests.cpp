@@ -271,6 +271,86 @@ TestResult Test_SetOut_MultipleAppends()
     return R;
 }
 
+TestResult Test_IfSingleVariableTruthy()
+{
+    TestResult R;
+    R.Name = "IF X uses non-zero truthiness";
+
+    bool ParseOk = false;
+    const std::vector<std::string> Lines = {
+        "IF X",
+        "  SET OUT0 1",
+        "RET"
+    };
+
+    const std::vector<int32> FalseCase = RunProgram(Lines, 0, 0, true, 1, &ParseOk);
+    if (!ParseOk)
+    {
+        R.Reason = "Parse failed for IF X";
+        return R;
+    }
+    if (!FalseCase.empty())
+    {
+        R.Reason = "Expected IF X to skip block when X=0";
+        return R;
+    }
+
+    const std::vector<int32> TrueCase = RunProgram(Lines, 5, 0, true, 1, &ParseOk);
+    if (!ParseOk)
+    {
+        R.Reason = "Parse failed for IF X with non-zero input";
+        return R;
+    }
+    if (TrueCase != std::vector<int32>{1})
+    {
+        R.Reason = "Expected IF X to execute block when X is non-zero";
+        return R;
+    }
+
+    R.Passed = true;
+    return R;
+}
+
+TestResult Test_IfnSingleVariableTruthy()
+{
+    TestResult R;
+    R.Name = "IFN X inverts non-zero truthiness";
+
+    bool ParseOk = false;
+    const std::vector<std::string> Lines = {
+        "IFN X",
+        "  SET OUT0 1",
+        "RET"
+    };
+
+    const std::vector<int32> TrueCase = RunProgram(Lines, 0, 0, true, 1, &ParseOk);
+    if (!ParseOk)
+    {
+        R.Reason = "Parse failed for IFN X";
+        return R;
+    }
+    if (TrueCase != std::vector<int32>{1})
+    {
+        R.Reason = "Expected IFN X to execute block when X=0";
+        return R;
+    }
+
+    const std::vector<int32> FalseCase = RunProgram(Lines, 5, 0, true, 1, &ParseOk);
+    if (!ParseOk)
+    {
+        R.Reason = "Parse failed for IFN X with non-zero input";
+        return R;
+    }
+    if (!FalseCase.empty())
+    {
+        R.Reason = "Expected IFN X to skip block when X is non-zero";
+        return R;
+    }
+
+    R.Passed = true;
+    return R;
+}
+
 } // namespace
 
 int main()
@@ -283,6 +363,8 @@ int main()
     Results.push_back(Test_SetThread_MulInline());
     Results.push_back(Test_SetDat_Rejected());
     Results.push_back(Test_SetOut_MultipleAppends());
+    Results.push_back(Test_IfSingleVariableTruthy());
+    Results.push_back(Test_IfnSingleVariableTruthy());
 
     int Passed = 0;
     int Failed = 0;
