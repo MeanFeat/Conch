@@ -221,7 +221,16 @@ bool ConLine::EvaluateCondition() const
 {
     if (Condition == ConConditionOp::None)
     {
-        return Invert ? false : true;
+        if (Kind != ConLineKind::If)
+        {
+            return Invert ? false : true;
+        }
+        if (!Left.IsValid())
+        {
+            throw ConRuntimeError(Location, "Single-operand IF requires an operand");
+        }
+        const bool Result = Left.Read() != 0;
+        return Invert ? !Result : Result;
     }
 
     if (!Left.IsValid() || !Right.IsValid())
