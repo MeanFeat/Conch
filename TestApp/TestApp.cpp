@@ -126,7 +126,7 @@ std::filesystem::path FindPuzzlesDirectory(const std::filesystem::path& Executab
         std::filesystem::current_path(),
     };
 
-    const auto AddCandidate = [&](const std::filesystem::path& Candidate)
+    const auto AddCandidate = [&SeenCandidates, &Candidates](const std::filesystem::path& Candidate)
     {
         const std::string Key = Candidate.lexically_normal().generic_string();
         if (SeenCandidates.insert(Key).second)
@@ -137,9 +137,9 @@ std::filesystem::path FindPuzzlesDirectory(const std::filesystem::path& Executab
     {
         for (std::filesystem::path Probe = Root; !Probe.empty(); Probe = Probe.parent_path())
         {
+            if (Probe == Probe.parent_path()) break;
             AddCandidate(Probe / "Puzzles");
             AddCandidate(Probe / "TestApp" / "Puzzles");
-            if (Probe == Probe.parent_path()) break;
         }
     }
 
