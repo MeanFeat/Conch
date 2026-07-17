@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // Platform-specific terminal support
@@ -118,11 +119,31 @@ std::vector<std::filesystem::path> FindPuzzleFiles(const std::filesystem::path& 
 
 std::filesystem::path FindPuzzlesDirectory(const std::filesystem::path& ExecutablePath)
 {
-    const std::vector<std::filesystem::path> Candidates = {
-        ExecutablePath.parent_path() / "Puzzles",
-        std::filesystem::current_path() / "Puzzles",
-        std::filesystem::current_path() / "TestApp" / "Puzzles",
+    std::vector<std::filesystem::path> Candidates;
+    std::unordered_set<std::string> SeenCandidates;
+    const std::vector<std::filesystem::path> SearchRoots = {
+        ExecutablePath.parent_path(),
+        std::filesystem::current_path(),
     };
+
+    const auto AddCandidate = [&SeenCandidates, &Candidates](const std::filesystem::path& Candidate)
+    {
+        const std::string Key = Candidate.lexically_normal().generic_string();
+        if (SeenCandidates.insert(Key).second)
+            Candidates.push_back(Candidate);
+    };
+
+    for (const auto& Root : SearchRoots)
+    {
+        for (std::filesystem::path Probe = Root;
+             !Probe.empty() && !Probe.relative_path().empty();
+             Probe = Probe.parent_path())
+        {
+            AddCandidate(Probe / "Puzzles");
+            AddCandidate(Probe / "TestApp" / "Puzzles");
+        }
+    }
+
     for (const auto& C : Candidates)
     {
         std::error_code EC;
