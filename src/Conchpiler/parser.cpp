@@ -563,19 +563,33 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             else if (Command == "REDO")
             {
-                if (Tokens.size() >= 5 && Tokens[1].Kind == ConTokenType::Identifier &&
-                    (Tokens[1].Lexeme == "IF" || Tokens[1].Lexeme == "IFN") &&
-                    Tokens[3].Kind == ConTokenType::Identifier && IsComparisonToken(Tokens[3].Lexeme))
+                constexpr size_t ExactSingleOperandRedoTokenCount = 3;
+                constexpr size_t MinComparisonRedoTokenCount = 5;
+                if (Tokens.size() >= 2 && Tokens[1].Kind == ConTokenType::Identifier &&
+                    (Tokens[1].Lexeme == "IF" || Tokens[1].Lexeme == "IFN"))
                 {
                     P.Kind = ParsedLineType::Loop;
                     P.Invert = Tokens[1].Lexeme == "IFN";
-                    P.Cmp = ParseComparisonToken(Tokens[3].Lexeme);
-                    P.Lhs = ResolveToken(Tokens[2]);
-                    P.Rhs = ResolveToken(Tokens[4]);
+                    if (Tokens.size() == ExactSingleOperandRedoTokenCount)
+                    {
+                        P.Cmp = ConConditionOp::None;
+                        P.Lhs = ResolveToken(Tokens[2]);
+                    }
+                    else if (Tokens.size() >= MinComparisonRedoTokenCount &&
+                        Tokens[3].Kind == ConTokenType::Identifier && IsComparisonToken(Tokens[3].Lexeme))
+                    {
+                        P.Cmp = ParseComparisonToken(Tokens[3].Lexeme);
+                        P.Lhs = ResolveToken(Tokens[2]);
+                        P.Rhs = ResolveToken(Tokens[4]);
+                    }
+                    else
+                    {
+                        throw ConParseError(CommandToken, "REDO now requires 'IF' followed by either a single operand or a comparison");
+                    }
                 }
                 else
                 {
-                    throw ConParseError(CommandToken, "REDO now requires 'IF' followed by a comparison");
+                    throw ConParseError(CommandToken, "REDO now requires 'IF' followed by either a single operand or a comparison");
                 }
             }
             else if (Command == "LOOP")

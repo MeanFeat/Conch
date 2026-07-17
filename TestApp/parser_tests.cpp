@@ -351,6 +351,47 @@ TestResult Test_IfnSingleVariableTruthy()
     return R;
 }
 
+TestResult Test_RedoSingleVariableTruthy()
+{
+    TestResult R;
+    R.Name = "REDO IF X uses non-zero truthiness";
+
+    bool ParseOk = false;
+    const std::vector<std::string> Lines = {
+        "REDO IF X",
+        "  SET OUT0 X",
+        "  DECR X",
+        "RET"
+    };
+
+    const std::vector<int32> FalseCase = RunProgram(Lines, 0, 0, true, 3, &ParseOk);
+    if (!ParseOk)
+    {
+        R.Reason = "Parse failed for REDO IF X";
+        return R;
+    }
+    if (!FalseCase.empty())
+    {
+        R.Reason = "Expected REDO IF X to skip loop when X=0";
+        return R;
+    }
+
+    const std::vector<int32> TrueCase = RunProgram(Lines, 3, 0, true, 3, &ParseOk);
+    if (!ParseOk)
+    {
+        R.Reason = "Parse failed for REDO IF X with non-zero input";
+        return R;
+    }
+    if (TrueCase != std::vector<int32>{3, 2, 1})
+    {
+        R.Reason = "Expected REDO IF X to loop while X is non-zero";
+        return R;
+    }
+
+    R.Passed = true;
+    return R;
+}
+
 } // namespace
 
 int main()
@@ -365,6 +406,7 @@ int main()
     Results.push_back(Test_SetOut_MultipleAppends());
     Results.push_back(Test_IfSingleVariableTruthy());
     Results.push_back(Test_IfnSingleVariableTruthy());
+    Results.push_back(Test_RedoSingleVariableTruthy());
 
     int Passed = 0;
     int Failed = 0;

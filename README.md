@@ -57,8 +57,9 @@ Cycles: 1 + cost of condition
 Executes block if condition is false. Single-value form inverts the non-zero check.
 
 REDO IF [LHS] [COMPARISON] [RHS]
+REDO IF [VALUE]
 Cycles: 0 + cost of condition if one is supplied
-Begins a loop block. Indent the loop body beneath the `REDO IF` line; dedenting ends the block. When the comparison evaluates to false the block is skipped entirely. After the body runs, the condition is checked again at a cost of `1 + VarCount ×` (distinct thread vars touched) to decide whether to repeat. Use `REDO IFN` for an inverted check. Loops automatically stop and raise a runtime error if they would iterate more than 9,999 times so you can safely experiment with aggressive optimisations.
+Begins a loop block. Indent the loop body beneath the `REDO IF` line; dedenting ends the block. Single-value form is true for any `non-zero` value and false for `0`. When the comparison evaluates to false the block is skipped entirely. After the body runs, the condition is checked again at a cost of `1 + VarCount ×` (distinct thread vars touched) to decide whether to repeat. Use `REDO IFN` for an inverted check. Loops automatically stop and raise a runtime error if they would iterate more than 9,999 times so you can safely experiment with aggressive optimisations.
 
 Math Instructions:
 
