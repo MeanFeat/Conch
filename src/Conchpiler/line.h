@@ -40,7 +40,7 @@ public:
     void SetReturn(VariableRef RetVal, bool bHasValue, ConSourceLocation InLocation);
 
     ConLineKind GetKind() const { return Kind; }
-    bool HasCondition() const { return Condition != ConConditionOp::None; }
+    bool HasCondition() const { return Condition != ConConditionOp::None || Left.IsValid(); }
     bool EvaluateCondition() const;
     int32 GetSkipCount() const { return Skip; }
     int32 GetLoopExitIndex() const { return LoopExitIndex; }
@@ -72,4 +72,3 @@ private:
     VariableRef ReturnValue;
     bool bHasReturnValue = false;
 };
-

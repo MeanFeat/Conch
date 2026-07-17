@@ -563,7 +563,17 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
             }
             else if (Command == "REDO")
             {
-                if (Tokens.size() >= 5 && Tokens[1].Kind == ConTokenType::Identifier &&
+                constexpr size_t SingleOperandRedoTokenCount = 3;
+                constexpr size_t ComparisonRedoTokenCount = 5;
+                if (Tokens.size() == SingleOperandRedoTokenCount && Tokens[1].Kind == ConTokenType::Identifier &&
+                    (Tokens[1].Lexeme == "IF" || Tokens[1].Lexeme == "IFN"))
+                {
+                    P.Kind = ParsedLineType::Loop;
+                    P.Invert = Tokens[1].Lexeme == "IFN";
+                    P.Cmp = ConConditionOp::None;
+                    P.Lhs = ResolveToken(Tokens[2]);
+                }
+                else if (Tokens.size() >= ComparisonRedoTokenCount && Tokens[1].Kind == ConTokenType::Identifier &&
                     (Tokens[1].Lexeme == "IF" || Tokens[1].Lexeme == "IFN") &&
                     Tokens[3].Kind == ConTokenType::Identifier && IsComparisonToken(Tokens[3].Lexeme))
                 {
@@ -575,7 +585,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                 }
                 else
                 {
-                    throw ConParseError(CommandToken, "REDO now requires 'IF' followed by a comparison");
+                    throw ConParseError(CommandToken, "REDO now requires 'IF' followed by either a single operand or a comparison");
                 }
             }
             else if (Command == "LOOP")
