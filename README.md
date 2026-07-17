@@ -49,7 +49,7 @@ Flow Control:
 IF [LHS] [COMPARISON] [RHS]
 IF [VALUE]
 Cycles: 1 + cost of condition
-Executes block if condition is true. Single-value form is true for any non-zero value and false for `0`.
+Executes block if condition is true. Single-value form is true for any `non-zero` value and false for `0`.
 
 IFN [LHS] [COMPARISON] [RHS]
 IFN [VALUE]
