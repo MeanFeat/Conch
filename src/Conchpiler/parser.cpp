@@ -539,7 +539,9 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
         {
             if (Command == "IF" || Command == "IFN")
             {
-                if (Tokens.size() == 2)
+                constexpr size_t SingleOperandIfTokenCount = 2;
+                constexpr size_t ComparisonIfTokenCount = 4;
+                if (Tokens.size() == SingleOperandIfTokenCount)
                 {
                     P.Kind = ParsedLineType::If;
                     P.Invert = Command == "IFN";
@@ -548,7 +550,7 @@ bool ConParser::Parse(const std::vector<std::string>& Lines, ConThread& OutThrea
                     Parsed.push_back(std::move(P));
                     continue;
                 }
-                if (!EnsureArgs(4, "IF requires either a single operand or a comparison with two operands"))
+                if (!EnsureArgs(ComparisonIfTokenCount, "IF requires either a single operand or a comparison with two operands"))
                 {
                     Parsed.push_back(std::move(P));
                     continue;
