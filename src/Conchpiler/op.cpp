@@ -231,19 +231,31 @@ void ConBinaryOp::Execute()
     }
 
     VariableRef& DstRef = GetDstArg();
-    if (!DstRef.IsThread())
-    {
-        throw ConRuntimeError(GetSourceLocation(), "Binary operation destination must be a thread variable");
-    }
-
-    ConVariableCached* Dst = DstRef.GetThread();
-    if (Dst == nullptr)
-    {
-        throw ConRuntimeError(GetSourceLocation(), "Binary operation destination is invalid");
-    }
-
     const int32 Result = bHasPrecomputed ? PrecomputedValue : Compute(SrcArg.at(0).Read(), SrcArg.at(1).Read());
-    Dst->SetVal(Result);
+    if (DstRef.IsThread())
+    {
+        ConVariableCached* Dst = DstRef.GetThread();
+        if (Dst == nullptr)
+        {
+            throw ConRuntimeError(GetSourceLocation(), "Binary operation destination is invalid");
+        }
+        Dst->SetVal(Result);
+        return;
+    }
+    if (DstRef.IsList())
+    {
+        ConVariableList* List = DstRef.GetList();
+        if (List == nullptr || !List->IsOutput())
+        {
+            throw ConRuntimeError(GetSourceLocation(), "Binary operation destination must be a thread or OUT list variable");
+        }
+        if (!List->TryAppend(Result))
+        {
+            throw ConRuntimeError(GetSourceLocation(), "OUT list cannot accept additional values");
+        }
+        return;
+    }
+    throw ConRuntimeError(GetSourceLocation(), "Binary operation destination must be a thread or OUT list variable");
 }
 
 void ConIncrOp::Execute()
@@ -291,28 +303,55 @@ void ConNotOp::Execute()
         throw ConRuntimeError(GetSourceLocation(), "NOT requires a destination argument");
     }
     VariableRef& DstRef = GetArgRef(0);
-    if (!DstRef.IsThread())
-    {
-        throw ConRuntimeError(GetSourceLocation(), "NOT destination must be a thread variable");
-    }
-    ConVariableCached* Dst = DstRef.GetThread();
-    if (Dst == nullptr)
-    {
-        throw ConRuntimeError(GetSourceLocation(), "NOT destination is invalid");
-    }
+
+    // Compute the result value first.
+    int32 Result = 0;
     if (GetArgsCount() == 1)
     {
-        Dst->SetVal(~Dst->GetVal());
-    }
-    else
-    {
-        const VariableRef& Src = GetArgRef(1);
-        if (!Src.IsValid())
+        if (!DstRef.IsThread())
         {
-            throw ConRuntimeError(GetSourceLocation(), "NOT source argument is invalid");
+            throw ConRuntimeError(GetSourceLocation(), "NOT destination must be a thread variable");
         }
-        Dst->SetVal(~Src.Read());
+        ConVariableCached* Dst = DstRef.GetThread();
+        if (Dst == nullptr)
+        {
+            throw ConRuntimeError(GetSourceLocation(), "NOT destination is invalid");
+        }
+        Dst->SetVal(~Dst->GetVal());
+        return;
     }
+
+    const VariableRef& Src = GetArgRef(1);
+    if (!Src.IsValid())
+    {
+        throw ConRuntimeError(GetSourceLocation(), "NOT source argument is invalid");
+    }
+    Result = ~Src.Read();
+
+    if (DstRef.IsThread())
+    {
+        ConVariableCached* Dst = DstRef.GetThread();
+        if (Dst == nullptr)
+        {
+            throw ConRuntimeError(GetSourceLocation(), "NOT destination is invalid");
+        }
+        Dst->SetVal(Result);
+        return;
+    }
+    if (DstRef.IsList())
+    {
+        ConVariableList* List = DstRef.GetList();
+        if (List == nullptr || !List->IsOutput())
+        {
+            throw ConRuntimeError(GetSourceLocation(), "NOT destination must be a thread or OUT list variable");
+        }
+        if (!List->TryAppend(Result))
+        {
+            throw ConRuntimeError(GetSourceLocation(), "OUT list cannot accept additional values");
+        }
+        return;
+    }
+    throw ConRuntimeError(GetSourceLocation(), "NOT destination must be a thread or OUT list variable");
 }
 
 void ConPopOp::Execute()

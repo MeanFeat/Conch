@@ -215,14 +215,30 @@ std::vector<ConBaseOp*> ConParser::ParseTokens(const std::vector<Token>& Tokens)
     {
         const Token& DestToken = Tokens.at(Index - 1);
         VariableRef Dst = ResolveToken(DestToken);
-        if (!Dst.IsThread())
+        if (Dst.IsThread())
         {
-            throw ConParseError(DestToken, "Inline destination must be a thread variable");
+            StackEntry Entry;
+            Entry.Value = Dst;
+            Entry.TokenInfo = DestToken;
+            return Entry;
         }
-        StackEntry Entry;
-        Entry.Value = Dst;
-        Entry.TokenInfo = DestToken;
-        return Entry;
+        if (Dst.IsList())
+        {
+            ConVariableList* List = Dst.GetList();
+            if (List == nullptr)
+            {
+                throw ConParseError(DestToken, "SET destination list is invalid");
+            }
+            if (!List->IsOutput())
+            {
+                throw ConParseError(DestToken, "SET destination must be a thread or OUT list variable");
+            }
+            StackEntry Entry;
+            Entry.Value = Dst;
+            Entry.TokenInfo = DestToken;
+            return Entry;
+        }
+        throw ConParseError(DestToken, "Inline destination must be a thread or OUT list variable");
     };
 
     auto StoreOp = [&](std::unique_ptr<ConBaseOp> Op, const StackEntry& ResultEntry, const Token& OpToken)
