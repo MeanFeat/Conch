@@ -221,7 +221,11 @@ bool ConLine::EvaluateCondition() const
 {
     if (Condition == ConConditionOp::None)
     {
-        const bool Result = Left.IsValid() ? Left.Read() != 0 : true;
+        if (!Left.IsValid())
+        {
+            return Invert ? false : true;
+        }
+        const bool Result = Left.Read() != 0;
         return Invert ? !Result : Result;
     }
 
